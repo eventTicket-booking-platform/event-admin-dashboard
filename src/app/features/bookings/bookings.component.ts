@@ -1,21 +1,15 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
-import { AfterViewInit, Component, ViewChild, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatSelectModule } from '@angular/material/select';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatSort, MatSortModule } from '@angular/material/sort';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { forkJoin } from 'rxjs';
 import { AdminDataService } from '../../core/services/admin-data.service';
-import { BookingRecord } from '../../models';
-import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog.component';
-import { DetailDialogComponent } from '../../shared/components/detail-dialog.component';
+import { SnackbarService } from '../../core/services/snackbar.service';
+import { BookingDetail, BookingStats, BookingSummary, EventSummary, UserSummary } from '../../models';
 
 @Component({
   selector: 'app-bookings',
@@ -24,155 +18,200 @@ import { DetailDialogComponent } from '../../shared/components/detail-dialog.com
     DatePipe,
     MatButtonModule,
     MatCardModule,
-    MatDialogModule,
     MatFormFieldModule,
-    MatIconModule,
-    MatInputModule,
-    MatPaginatorModule,
     MatSelectModule,
-    MatSnackBarModule,
-    MatSortModule,
-    MatTableModule,
     ReactiveFormsModule,
   ],
   template: `
-    <section class="page-head">
-      <div>
-        <p class="page-head__eyebrow">Order operations</p>
-        <h2>Bookings Management</h2>
-        <p class="page-head__copy">Track payment health, ticket volume, and booking lifecycle status.</p>
-      </div>
+    <section class="page-actions">
+      <button mat-flat-button (click)="load()">Refresh</button>
+    </section>
+
+    <section class="stats-grid stats-grid--compact">
+      <mat-card class="stats-card"><p>Total</p><h3>{{ stats()?.totalBookings ?? '-' }}</h3></mat-card>
+      <mat-card class="stats-card"><p>Confirmed</p><h3>{{ stats()?.confirmedBookings ?? '-' }}</h3></mat-card>
+      <mat-card class="stats-card"><p>Cancelled</p><h3>{{ stats()?.cancelledBookings ?? '-' }}</h3></mat-card>
     </section>
 
     <mat-card class="panel">
-      <form [formGroup]="filters" class="filters-grid">
-        <mat-form-field appearance="outline" class="filters-grid__search">
-          <mat-label>Search</mat-label>
-          <input matInput formControlName="search" placeholder="Booking ID or customer name" />
-        </mat-form-field>
+      <form [formGroup]="filters" class="filters-grid filters-grid--three">
         <mat-form-field appearance="outline">
-          <mat-label>Booking Status</mat-label>
+          <mat-label>Status</mat-label>
           <mat-select formControlName="status">
             <mat-option value="">All</mat-option>
-            <mat-option value="pending">Pending</mat-option>
-            <mat-option value="confirmed">Confirmed</mat-option>
-            <mat-option value="cancelled">Cancelled</mat-option>
+            <mat-option value="PENDING">PENDING</mat-option>
+            <mat-option value="CONFIRMED">CONFIRMED</mat-option>
+            <mat-option value="CANCELLED">CANCELLED</mat-option>
           </mat-select>
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Payment</mat-label>
-          <mat-select formControlName="paymentStatus">
-            <mat-option value="">All</mat-option>
-            <mat-option value="pending">Pending</mat-option>
-            <mat-option value="completed">Completed</mat-option>
-            <mat-option value="failed">Failed</mat-option>
+          <mat-label>Event</mat-label>
+          <mat-select formControlName="eventId">
+            <mat-option value="">All events</mat-option>
+            @for (event of eventOptions(); track event.eventId) {
+              <mat-option [value]="event.eventId.toString()">{{ event.title }}</mat-option>
+            }
           </mat-select>
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Date Range</mat-label>
-          <mat-select formControlName="range">
-            <mat-option value="">All Dates</mat-option>
-            <mat-option value="7">Last 7 Days</mat-option>
-            <mat-option value="30">Last 30 Days</mat-option>
+          <mat-label>User email</mat-label>
+          <mat-select formControlName="userEmail">
+            <mat-option value="">All users</mat-option>
+            @for (user of userOptions(); track user.email) {
+              <mat-option [value]="user.email">{{ user.email }}</mat-option>
+            }
           </mat-select>
         </mat-form-field>
       </form>
-
-      @if (loading()) {
-        <div class="skeleton-table">@for (row of [1,2,3,4,5,6]; track row) { <div class="skeleton-table__row"></div> }</div>
-      } @else {
-        <div class="table-wrapper">
-          <table mat-table [dataSource]="dataSource" matSort>
-            <ng-container matColumnDef="id"><th mat-header-cell *matHeaderCellDef mat-sort-header>Booking ID</th><td mat-cell *matCellDef="let row">{{ row.id }}</td></ng-container>
-            <ng-container matColumnDef="customerName"><th mat-header-cell *matHeaderCellDef mat-sort-header>Customer</th><td mat-cell *matCellDef="let row">{{ row.customerName }}</td></ng-container>
-            <ng-container matColumnDef="eventName"><th mat-header-cell *matHeaderCellDef mat-sort-header>Event</th><td mat-cell *matCellDef="let row">{{ row.eventName }}</td></ng-container>
-            <ng-container matColumnDef="ticketsCount"><th mat-header-cell *matHeaderCellDef mat-sort-header>Tickets</th><td mat-cell *matCellDef="let row">{{ row.ticketsCount }}</td></ng-container>
-            <ng-container matColumnDef="totalAmount"><th mat-header-cell *matHeaderCellDef mat-sort-header>Total</th><td mat-cell *matCellDef="let row">{{ row.totalAmount | currency }}</td></ng-container>
-            <ng-container matColumnDef="bookingDate"><th mat-header-cell *matHeaderCellDef mat-sort-header>Booking Date</th><td mat-cell *matCellDef="let row">{{ row.bookingDate | date: 'mediumDate' }}</td></ng-container>
-            <ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef mat-sort-header>Status</th><td mat-cell *matCellDef="let row"><span class="status-badge status-badge--{{ row.status }}">{{ row.status }}</span></td></ng-container>
-            <ng-container matColumnDef="paymentStatus"><th mat-header-cell *matHeaderCellDef mat-sort-header>Payment</th><td mat-cell *matCellDef="let row"><span class="status-badge status-badge--{{ row.paymentStatus }}">{{ row.paymentStatus }}</span></td></ng-container>
-            <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef>Actions</th>
-              <td mat-cell *matCellDef="let row">
-                <button mat-icon-button (click)="view(row)"><mat-icon>visibility</mat-icon></button>
-                <button mat-icon-button (click)="cancel(row)"><mat-icon>cancel</mat-icon></button>
-                <button mat-icon-button (click)="receipt(row)"><mat-icon>receipt_long</mat-icon></button>
-              </td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-          </table>
-        </div>
-        <mat-paginator [pageSizeOptions]="[10,25,50]" [pageSize]="10"></mat-paginator>
-      }
     </mat-card>
+
+    <section class="content-grid">
+      <mat-card class="panel">
+        <div class="panel__header">
+          <div>
+            <h3>Booking list</h3>
+            <p>{{ bookings().length }} records from the admin booking list endpoint.</p>
+          </div>
+        </div>
+        <div class="data-list">
+          @for (booking of bookings(); track booking.bookingId) {
+            <button class="data-row data-row--button" type="button" (click)="loadDetail(booking.bookingId)">
+              <div class="data-row__main">
+                <strong>{{ booking.bookingReference }}</strong>
+                <p>{{ booking.eventTitle }}</p>
+                <span>{{ booking.bookingDate | date: 'medium' }}</span>
+              </div>
+              <div class="data-row__side">
+                <span class="status-badge status-badge--{{ booking.status.toLowerCase() }}">{{ booking.status }}</span>
+                <strong>{{ booking.totalAmount | currency }}</strong>
+              </div>
+            </button>
+          } @empty {
+            <p class="muted-copy">No bookings found.</p>
+          }
+        </div>
+      </mat-card>
+
+      <mat-card class="panel">
+        <div class="panel__header">
+          <div>
+            <h3>Booking detail</h3>
+            <p>Loaded from the booking detail endpoint.</p>
+          </div>
+        </div>
+
+        @if (detail(); as booking) {
+          <dl class="detail-grid">
+            <dt>Reference</dt><dd>{{ booking.bookingReference }}</dd>
+            <dt>User</dt><dd>{{ resolveUserEmail(booking.userId) }}</dd>
+            <dt>Event</dt><dd>{{ booking.eventTitle }}</dd>
+            <dt>Status</dt><dd>{{ booking.status }}</dd>
+            <dt>Total</dt><dd>{{ booking.totalAmount | currency }}</dd>
+            <dt>Booked</dt><dd>{{ booking.bookingDate | date: 'medium' }}</dd>
+          </dl>
+
+          <div class="ticket-box">
+            <h3>Items</h3>
+            <div class="simple-list">
+              @for (item of booking.items; track $index) {
+                <div class="simple-list__item">
+                  <div>
+                    <strong>{{ item.ticketTypeName || 'Ticket' }}</strong>
+                    <p>Qty {{ item.quantity }}</p>
+                  </div>
+                  <span>{{ item.price | currency }}</span>
+                </div>
+              } @empty {
+                <p class="muted-copy">No line items returned.</p>
+              }
+            </div>
+          </div>
+        } @else {
+          <p class="muted-copy">Select a booking to inspect details.</p>
+        }
+      </mat-card>
+    </section>
   `,
 })
-export class BookingsComponent implements AfterViewInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
-
+export class BookingsComponent {
   private readonly fb = inject(FormBuilder);
-  private readonly dialog = inject(MatDialog);
-  private readonly snackBar = inject(MatSnackBar);
-  readonly data = inject(AdminDataService);
-  readonly loading = signal(true);
-  readonly displayedColumns = ['id', 'customerName', 'eventName', 'ticketsCount', 'totalAmount', 'bookingDate', 'status', 'paymentStatus', 'actions'];
-  readonly dataSource = new MatTableDataSource<BookingRecord>(this.data.bookings());
+  private readonly data = inject(AdminDataService);
+  private readonly snackbar = inject(SnackbarService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly bookings = signal<BookingSummary[]>([]);
+  readonly stats = signal<BookingStats | null>(null);
+  readonly detail = signal<BookingDetail | null>(null);
+  readonly eventOptions = signal<EventSummary[]>([]);
+  readonly userOptions = signal<UserSummary[]>([]);
+
   readonly filters = this.fb.nonNullable.group({
-    search: [''],
     status: [''],
-    paymentStatus: [''],
-    range: [''],
+    eventId: [''],
+    userEmail: [''],
   });
 
   constructor() {
-    setTimeout(() => this.loading.set(false), 850);
-    this.dataSource.filterPredicate = (record, filter) => {
-      const parsed = JSON.parse(filter) as { search: string; status: string; paymentStatus: string; range: string };
-      const text = `${record.id} ${record.customerName}`.toLowerCase();
-      const ageDays = Math.abs(Date.now() - new Date(record.bookingDate).getTime()) / 86400000;
-      return (
-        text.includes(parsed.search) &&
-        (!parsed.status || record.status === parsed.status) &&
-        (!parsed.paymentStatus || record.paymentStatus === parsed.paymentStatus) &&
-        (!parsed.range || ageDays <= Number(parsed.range))
-      );
-    };
-    this.filters.valueChanges.subscribe(() => this.applyFilters());
+    this.filters.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load());
+    this.loadEventOptions();
+    this.loadUserOptions();
+    this.load();
   }
 
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
-  }
-
-  view(record: BookingRecord): void {
-    this.dialog.open(DetailDialogComponent, { data: { title: `Booking ${record.id}`, record } });
-  }
-
-  cancel(record: BookingRecord): void {
-    this.dialog
-      .open(ConfirmDialogComponent, {
-        data: { title: 'Cancel booking', message: `Cancel booking ${record.id} for ${record.customerName}?`, confirmLabel: 'Cancel Booking' },
-      })
-      .afterClosed()
-      .subscribe((confirmed) => {
-        if (!confirmed) {
-          return;
-        }
-        this.data.cancelBooking(record.id);
-        this.dataSource.data = this.data.bookings();
-        this.applyFilters();
-        this.snackBar.open('Booking cancelled.', 'Close', { duration: 2500 });
+  load(): void {
+    forkJoin({
+      stats: this.data.getBookingStats(),
+      bookings: this.data.getBookings({ ...this.filters.getRawValue(), page: 0, size: 20 }),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ stats, bookings }) => {
+          this.stats.set(stats);
+          const bookingList = bookings.dataList ?? [];
+          this.bookings.set(bookingList);
+        },
+        error: (error: { error?: { message?: string }; message?: string }) => {
+          this.snackbar.error(error.error?.message || error.message || 'Unable to load bookings.');
+        },
       });
   }
 
-  receipt(record: BookingRecord): void {
-    this.snackBar.open(`Receipt opened for ${record.id}. Connect PDF generation to provide a document.`, 'Close', { duration: 3000 });
+  private loadEventOptions(): void {
+    this.data
+      .getEvents({ page: 0, size: 200 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (events) => this.eventOptions.set(events.dataList ?? []),
+        error: () => this.snackbar.warning('Unable to load event filter options.'),
+      });
   }
 
-  private applyFilters(): void {
-    this.dataSource.filter = JSON.stringify(this.filters.getRawValue()).toLowerCase();
+  private loadUserOptions(): void {
+    this.data
+      .getUsers({ page: 0, size: 200 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (users) => this.userOptions.set(users.dataList ?? []),
+        error: () => this.snackbar.warning('Unable to load user email filter options.'),
+      });
+  }
+
+  loadDetail(bookingId: number): void {
+    this.data
+      .getBooking(bookingId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (detail) => {
+          this.detail.set(detail);
+          this.snackbar.info(`Loaded booking ${detail.bookingReference}.`);
+        },
+        error: (error: { error?: { message?: string }; message?: string }) => {
+          this.snackbar.error(error.error?.message || error.message || 'Unable to load booking detail.');
+        },
+      });
+  }
+
+  resolveUserEmail(userId: string): string {
+    return this.userOptions().find((user) => user.userId === userId)?.email ?? userId;
   }
 }

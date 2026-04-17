@@ -4,6 +4,10 @@ import { AppShellComponent } from './layout/app-shell.component';
 
 export const routes: Routes = [
   {
+    path: 'login',
+    loadComponent: () => import('./features/login/login.component').then((m) => m.LoginComponent),
+  },
+  {
     path: '',
     component: AppShellComponent,
     canActivate: [accessGuard],
@@ -26,13 +30,13 @@ export const routes: Routes = [
         loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent),
       },
       {
+        path: 'categories',
+        loadComponent: () => import('./features/categories/categories.component').then((m) => m.CategoriesComponent),
+      },
+      {
         path: 'notifications',
         loadComponent: () =>
           import('./features/notifications/notifications.component').then((m) => m.NotificationsComponent),
-      },
-      {
-        path: 'reports',
-        loadComponent: () => import('./features/reports/reports.component').then((m) => m.ReportsComponent),
       },
       {
         path: 'settings',
@@ -40,4 +44,5 @@ export const routes: Routes = [
       },
     ],
   },
+  { path: '**', redirectTo: '' },
 ];

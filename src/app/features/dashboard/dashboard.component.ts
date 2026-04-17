@@ -1,73 +1,54 @@
-import { DatePipe, NgClass } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { CurrencyPipe } from '@angular/common';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatIconModule } from '@angular/material/icon';
-import { BaseChartDirective } from 'ng2-charts';
-import { Chart, registerables } from 'chart.js';
+import { forkJoin } from 'rxjs';
 import { AdminDataService } from '../../core/services/admin-data.service';
-
-Chart.register(...registerables);
+import { SnackbarService } from '../../core/services/snackbar.service';
+import { BookingStats, EventSummary, NotificationStats } from '../../models';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [BaseChartDirective, DatePipe, MatButtonModule, MatCardModule, MatChipsModule, MatIconModule, NgClass],
+  imports: [CurrencyPipe, MatButtonModule, MatCardModule],
   template: `
-    <section class="page-head">
-      <div>
-        <p class="page-head__eyebrow">Operations overview</p>
-        <h2>Dashboard</h2>
-        <p class="page-head__copy">Live performance, delivery status, and recent operational activity.</p>
-      </div>
-      <div class="page-head__actions">
-        <button mat-stroked-button>Refresh</button>
-        <button mat-flat-button color="primary">Generate Snapshot</button>
-      </div>
+    <section class="page-actions">
+      <button mat-flat-button (click)="load()">Refresh</button>
     </section>
+
+    @if (!data.hasToken()) {
+      <mat-card class="panel warning-panel">
+        <strong>Connection setup required</strong>
+        <p>Add a valid bearer token in Settings before using admin endpoints.</p>
+      </mat-card>
+    }
 
     <section class="stats-grid">
-      @for (stat of data.dashboardStats(); track stat.label) {
-        <mat-card class="stats-card">
-          <p>{{ stat.label }}</p>
-          <h3>{{ stat.value }}</h3>
-          <span class="trend" [ngClass]="stat.direction">{{ stat.direction === 'up' ? '↑' : '↓' }} {{ stat.trend }}</span>
-        </mat-card>
-      }
+      <mat-card class="stats-card"><p>Total bookings</p><h3>{{ bookingStats()?.totalBookings ?? '-' }}</h3></mat-card>
+      <mat-card class="stats-card"><p>Revenue</p><h3>{{ bookingStats()?.totalRevenue ?? 0 | currency }}</h3></mat-card>
+      <mat-card class="stats-card"><p>Notifications sent</p><h3>{{ notificationStats()?.sentCount ?? '-' }}</h3></mat-card>
+      <mat-card class="stats-card"><p>Events loaded</p><h3>{{ recentEvents().length }}</h3></mat-card>
     </section>
 
-    <section class="analytics-grid">
-      <mat-card class="panel panel--wide">
-        <div class="panel__header">
-          <div>
-            <h3>Booking Trends</h3>
-            <p>Monitor demand across the selected time range.</p>
-          </div>
-          <mat-chip-set>
-            <mat-chip-option [selected]="range() === 7" (click)="range.set(7)">7 Days</mat-chip-option>
-            <mat-chip-option [selected]="range() === 30" (click)="range.set(30)">30 Days</mat-chip-option>
-          </mat-chip-set>
-        </div>
-        <canvas baseChart [data]="bookingChartData()" [options]="lineOptions" [type]="'line'"></canvas>
-      </mat-card>
-
+    <section class="dashboard-grid">
       <mat-card class="panel">
         <div class="panel__header">
           <div>
-            <h3>Notifications Status</h3>
-            <p>Email and outbound delivery health.</p>
+            <h3>Recent events</h3>
+            <p>Loaded from the admin event list endpoint.</p>
           </div>
-          <button mat-button color="primary">Retry Failed</button>
         </div>
-        <div class="status-list">
-          @for (item of data.notifications().slice(0, 6); track item.id) {
-            <div class="status-item">
+        <div class="simple-list">
+          @for (event of recentEvents(); track event.eventId) {
+            <div class="simple-list__item">
               <div>
-                <strong>{{ item.recipient }}</strong>
-                <p>{{ item.sentAt | date: 'medium' }}</p>
+                <strong>{{ event.title }}</strong>
+                <p>{{ event.categoryName }} · {{ event.city }}</p>
               </div>
-              <span class="status-badge status-badge--{{ item.status }}">{{ item.status }}</span>
+              <span class="status-badge status-badge--{{ event.status.toLowerCase() }}">{{ event.status }}</span>
             </div>
+          } @empty {
+            <p class="muted-copy">No events available.</p>
           }
         </div>
       </mat-card>
@@ -75,80 +56,62 @@ Chart.register(...registerables);
       <mat-card class="panel">
         <div class="panel__header">
           <div>
-            <h3>Event Performance</h3>
-            <p>Top events ranked by tickets sold.</p>
+            <h3>Booking health</h3>
+            <p>From admin booking stats.</p>
           </div>
         </div>
-        <canvas baseChart [data]="eventChartData" [options]="barOptions" [type]="'bar'"></canvas>
+        <dl class="detail-grid">
+          <dt>Confirmed</dt><dd>{{ bookingStats()?.confirmedBookings ?? '-' }}</dd>
+          <dt>Cancelled</dt><dd>{{ bookingStats()?.cancelledBookings ?? '-' }}</dd>
+          <dt>Failed</dt><dd>{{ bookingStats()?.failedBookings ?? '-' }}</dd>
+        </dl>
       </mat-card>
 
       <mat-card class="panel">
         <div class="panel__header">
           <div>
-            <h3>Recent Activity</h3>
-            <p>Latest high-signal operational changes.</p>
+            <h3>Notification health</h3>
+            <p>From notification admin stats.</p>
           </div>
         </div>
-        <div class="activity-list">
-          @for (item of data.activities().slice(0, 6); track item.id) {
-            <div class="activity-item">
-              <div class="activity-item__dot"></div>
-              <div>
-                <strong>{{ item.title }}</strong>
-                <p>{{ item.detail }}</p>
-                <span>{{ item.timestamp | date: 'medium' }}</span>
-              </div>
-            </div>
-          }
-        </div>
+        <dl class="detail-grid">
+          <dt>Total</dt><dd>{{ notificationStats()?.totalNotifications ?? '-' }}</dd>
+          <dt>Failed</dt><dd>{{ notificationStats()?.failedCount ?? '-' }}</dd>
+          <dt>Unread</dt><dd>{{ notificationStats()?.unreadCount ?? '-' }}</dd>
+        </dl>
       </mat-card>
     </section>
   `,
 })
 export class DashboardComponent {
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly snackbar = inject(SnackbarService);
   readonly data = inject(AdminDataService);
-  readonly range = signal<7 | 30>(7);
 
-  readonly bookingChartData = computed(() => {
-    const points = this.range() === 7 ? this.data.bookingTrend7() : this.data.bookingTrend30();
-    return {
-      labels: points.map((point) => point.label),
-      datasets: [
-        {
-          label: 'Bookings',
-          data: points.map((point) => point.value),
-          tension: 0.35,
-          borderColor: '#1E3A5F',
-          backgroundColor: 'rgba(30, 58, 95, 0.18)',
-          fill: true,
+  readonly bookingStats = signal<BookingStats | null>(null);
+  readonly notificationStats = signal<NotificationStats | null>(null);
+  readonly recentEvents = signal<EventSummary[]>([]);
+
+  constructor() {
+    this.load();
+  }
+
+  load(): void {
+    forkJoin({
+      bookingStats: this.data.getBookingStats(),
+      notificationStats: this.data.getNotificationStats(),
+      events: this.data.getEvents({ page: 0, size: 5 }),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ bookingStats, notificationStats, events }) => {
+          this.bookingStats.set(bookingStats);
+          this.notificationStats.set(notificationStats);
+          this.recentEvents.set(events.dataList ?? []);
         },
-      ],
-    };
-  });
-
-  readonly eventChartData = {
-    labels: this.data.eventPerformance().map((point) => point.label),
-    datasets: [
-      {
-        label: 'Tickets Sold',
-        data: this.data.eventPerformance().map((point) => point.value),
-        borderRadius: 10,
-        backgroundColor: ['#1E3A5F', '#325b8f', '#4a73a6', '#6a8cb7', '#8ca8ca', '#acc4dd'],
-      },
-    ],
-  };
-
-  readonly lineOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: { x: { grid: { display: false } }, y: { beginAtZero: true } },
-  };
-
-  readonly barOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: { x: { grid: { display: false } }, y: { beginAtZero: true } },
-  };
+        error: (error: { error?: { message?: string }; message?: string }) => {
+          this.snackbar.error(error.error?.message || error.message || 'Unable to load dashboard data.');
+        },
+      });
+  }
 }

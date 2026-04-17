@@ -1,148 +1,231 @@
-import { DatePipe } from '@angular/common';
-import { AfterViewInit, Component, ViewChild, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatSelectModule } from '@angular/material/select';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatSort, MatSortModule } from '@angular/material/sort';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { AdminDataService } from '../../core/services/admin-data.service';
-import { UserRecord } from '../../models';
-import { DetailDialogComponent } from '../../shared/components/detail-dialog.component';
+import { SnackbarService } from '../../core/services/snackbar.service';
+import { UserSummary } from '../../models';
 
 @Component({
   selector: 'app-users',
-  imports: [
-    DatePipe,
-    MatButtonModule,
-    MatCardModule,
-    MatDialogModule,
-    MatFormFieldModule,
-    MatIconModule,
-    MatInputModule,
-    MatPaginatorModule,
-    MatSelectModule,
-    MatSnackBarModule,
-    MatSortModule,
-    MatTableModule,
-    ReactiveFormsModule,
+  imports: [MatButtonModule, MatCardModule],
+  styles: [
+    `
+      .users-table-wrap {
+        overflow-x: auto;
+      }
+
+      .users-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .users-table th,
+      .users-table td {
+        text-align: left;
+        padding: 0.75rem 0.65rem;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        vertical-align: middle;
+      }
+
+      .users-table th {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #334155;
+      }
+
+      .users-table td {
+        color: #0f172a;
+      }
+
+      .user-cell {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+      }
+
+      .avatar {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 999px;
+        object-fit: cover;
+        background: rgba(148, 163, 184, 0.25);
+      }
+
+      .role-pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 0.15rem 0.6rem;
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-weight: 600;
+        background: #e2e8f0;
+        color: #0f172a;
+      }
+
+      .role-pill--admin {
+        background: #d1fae5;
+        color: #065f46;
+      }
+
+      .role-pill--host {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      .pagination {
+        margin-top: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+      }
+
+      .pagination__meta {
+        color: #334155;
+        font-size: 0.9rem;
+      }
+
+      .pagination__actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .pager-btn {
+        color: #0f172a !important;
+        border-color: #94a3b8 !important;
+        background: #f8fafc !important;
+      }
+
+      .pager-btn:disabled {
+        color: #94a3b8 !important;
+        border-color: #cbd5e1 !important;
+        background: #f1f5f9 !important;
+      }
+    `,
   ],
   template: `
-    <section class="page-head">
-      <div>
-        <p class="page-head__eyebrow">Identity & roles</p>
-        <h2>Users Management</h2>
-        <p class="page-head__copy">Manage access, monitor activity, and review booking history.</p>
-      </div>
+    <section class="page-actions">
+      <button mat-flat-button (click)="load()">Refresh</button>
     </section>
 
     <mat-card class="panel">
-      <form [formGroup]="filters" class="filters-grid">
-        <mat-form-field appearance="outline" class="filters-grid__search">
-          <mat-label>Search</mat-label>
-          <input matInput formControlName="search" placeholder="Name or email" />
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Role</mat-label>
-          <mat-select formControlName="role">
-            <mat-option value="">All</mat-option>
-            <mat-option value="admin">Admin</mat-option>
-            <mat-option value="manager">Manager</mat-option>
-            <mat-option value="user">User</mat-option>
-          </mat-select>
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Status</mat-label>
-          <mat-select formControlName="status">
-            <mat-option value="">All</mat-option>
-            <mat-option value="active">Active</mat-option>
-            <mat-option value="inactive">Inactive</mat-option>
-          </mat-select>
-        </mat-form-field>
-      </form>
+      <div class="panel__header">
+        <div>
+          <h3>User list</h3>
+          <p>{{ totalCount() }} total users</p>
+        </div>
+      </div>
 
       @if (loading()) {
-        <div class="skeleton-table">@for (row of [1,2,3,4,5,6]; track row) { <div class="skeleton-table__row"></div> }</div>
+        <p class="muted-copy">Loading users...</p>
+      } @else if (users().length === 0) {
+        <p class="muted-copy">No users found.</p>
       } @else {
-        <div class="table-wrapper">
-          <table mat-table [dataSource]="dataSource" matSort>
-            <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef mat-sort-header>Name</th><td mat-cell *matCellDef="let row">{{ row.name }}</td></ng-container>
-            <ng-container matColumnDef="email"><th mat-header-cell *matHeaderCellDef mat-sort-header>Email</th><td mat-cell *matCellDef="let row">{{ row.email }}</td></ng-container>
-            <ng-container matColumnDef="role"><th mat-header-cell *matHeaderCellDef mat-sort-header>Role</th><td mat-cell *matCellDef="let row"><span class="status-badge status-badge--role-{{ row.role }}">{{ row.role }}</span></td></ng-container>
-            <ng-container matColumnDef="joinDate"><th mat-header-cell *matHeaderCellDef mat-sort-header>Join Date</th><td mat-cell *matCellDef="let row">{{ row.joinDate | date: 'mediumDate' }}</td></ng-container>
-            <ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef mat-sort-header>Status</th><td mat-cell *matCellDef="let row"><span class="status-badge status-badge--{{ row.status }}">{{ row.status }}</span></td></ng-container>
-            <ng-container matColumnDef="lastLogin"><th mat-header-cell *matHeaderCellDef mat-sort-header>Last Login</th><td mat-cell *matCellDef="let row">{{ row.lastLogin | date: 'short' }}</td></ng-container>
-            <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef>Actions</th>
-              <td mat-cell *matCellDef="let row">
-                <button mat-icon-button (click)="view(row)"><mat-icon>visibility</mat-icon></button>
-                <button mat-icon-button (click)="toggle(row)"><mat-icon>{{ row.status === 'active' ? 'person_off' : 'person_add' }}</mat-icon></button>
-                <button mat-icon-button (click)="reset(row)"><mat-icon>lock_reset</mat-icon></button>
-              </td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+        <div class="users-table-wrap">
+          <table class="users-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Email</th>
+                <th>Role</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (user of users(); track user.email) {
+                <tr>
+                  <td>
+                    <div class="user-cell">
+                      @if (user.resourceUrl) {
+                        <img [src]="user.resourceUrl" [alt]="user.firstName + ' ' + user.lastName" class="avatar" />
+                      } @else {
+                        <div class="avatar"></div>
+                      }
+                      <span>{{ user.firstName }} {{ user.lastName }}</span>
+                    </div>
+                  </td>
+                  <td>{{ user.email }}</td>
+                  <td>
+                    <span class="role-pill" [class.role-pill--admin]="user.role === 'ADMIN'" [class.role-pill--host]="user.role === 'HOST'">
+                      {{ user.role || 'UNKNOWN' }}
+                    </span>
+                  </td>
+                </tr>
+              }
+            </tbody>
           </table>
         </div>
-        <mat-paginator [pageSizeOptions]="[10,25,50]" [pageSize]="10"></mat-paginator>
+
+        <div class="pagination">
+          <p class="pagination__meta">
+            Showing {{ rangeStart() }} - {{ rangeEnd() }} of {{ totalCount() }}
+          </p>
+          <div class="pagination__actions">
+            <button mat-stroked-button class="pager-btn" type="button" (click)="previousPage()" [disabled]="pageIndex() === 0 || loading()">
+              Previous
+            </button>
+            <button mat-stroked-button class="pager-btn" type="button" (click)="nextPage()" [disabled]="!hasNextPage() || loading()">
+              Next
+            </button>
+          </div>
+        </div>
       }
     </mat-card>
   `,
 })
-export class UsersComponent implements AfterViewInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+export class UsersComponent {
+  private readonly data = inject(AdminDataService);
+  private readonly snackbar = inject(SnackbarService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  private readonly fb = inject(FormBuilder);
-  private readonly dialog = inject(MatDialog);
-  private readonly snackBar = inject(MatSnackBar);
-  readonly data = inject(AdminDataService);
-  readonly loading = signal(true);
-  readonly displayedColumns = ['name', 'email', 'role', 'joinDate', 'status', 'lastLogin', 'actions'];
-  readonly dataSource = new MatTableDataSource<UserRecord>(this.data.users());
-  readonly filters = this.fb.nonNullable.group({ search: [''], role: [''], status: [''] });
+  readonly users = signal<UserSummary[]>([]);
+  readonly totalCount = signal(0);
+  readonly pageIndex = signal(0);
+  readonly pageSize = signal(10);
+  readonly loading = signal(false);
+
+  readonly hasNextPage = computed(() => (this.pageIndex() + 1) * this.pageSize() < this.totalCount());
+  readonly rangeStart = computed(() => (this.totalCount() === 0 ? 0 : this.pageIndex() * this.pageSize() + 1));
+  readonly rangeEnd = computed(() => Math.min((this.pageIndex() + 1) * this.pageSize(), this.totalCount()));
 
   constructor() {
-    setTimeout(() => this.loading.set(false), 900);
-    this.dataSource.filterPredicate = (record, filter) => {
-      const parsed = JSON.parse(filter) as { search: string; role: string; status: string };
-      const text = `${record.name} ${record.email}`.toLowerCase();
-      return text.includes(parsed.search) && (!parsed.role || record.role === parsed.role) && (!parsed.status || record.status === parsed.status);
-    };
-    this.filters.valueChanges.subscribe(() => this.applyFilters());
+    this.load();
   }
 
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
+  load(): void {
+    this.loading.set(true);
+    this.data
+      .getUsers({ page: this.pageIndex(), size: this.pageSize() })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (page) => {
+          this.users.set(page.dataList ?? []);
+          this.totalCount.set(page.dataCount ?? 0);
+          this.loading.set(false);
+        },
+        error: (error: { error?: { message?: string }; message?: string }) => {
+          this.snackbar.error(error.error?.message || error.message || 'Unable to load users.');
+          this.loading.set(false);
+        },
+      });
   }
 
-  view(record: UserRecord): void {
-    this.dialog.open(DetailDialogComponent, { data: { title: `${record.name} profile`, record } });
+  previousPage(): void {
+    if (this.pageIndex() === 0) {
+      return;
+    }
+    this.pageIndex.update((value) => value - 1);
+    this.load();
   }
 
-  toggle(record: UserRecord): void {
-    this.data.toggleUserStatus(record.id);
-    this.dataSource.data = this.data.users();
-    this.applyFilters();
-    this.snackBar.open(`${record.name} status updated.`, 'Close', { duration: 2500 });
-  }
-
-  reset(record: UserRecord): void {
-    this.snackBar.open(`Password reset email sent to ${record.email}.`, 'Close', { duration: 3000 });
-  }
-
-  private applyFilters(): void {
-    this.dataSource.filter = JSON.stringify({
-      search: this.filters.getRawValue().search.toLowerCase(),
-      role: this.filters.getRawValue().role,
-      status: this.filters.getRawValue().status,
-    });
+  nextPage(): void {
+    if (!this.hasNextPage()) {
+      return;
+    }
+    this.pageIndex.update((value) => value + 1);
+    this.load();
   }
 }

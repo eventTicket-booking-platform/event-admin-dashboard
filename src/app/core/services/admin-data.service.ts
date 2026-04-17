@@ -1,246 +1,404 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { map, Observable } from 'rxjs';
 import {
-  ActivityRecord,
-  BookingRecord,
-  DashboardStat,
-  EventRecord,
-  NotificationRecord,
-  TrendPoint,
-  UserRecord,
+  AdminProfile,
+  ApiConfig,
+  ApiMessageResponse,
+  BookingDetail,
+  BookingStats,
+  CategoryRecord,
+  EventDetail,
+  EventFormValue,
+  LoginRequest,
+  LoginResponse,
+  NotificationLog,
+  NotificationLogPage,
+  NotificationStats,
+  PaginatedBookings,
+  PaginatedEvents,
+  PaginatedUsers,
+  StandardResponse,
 } from '../../models';
-import { mockActivities, mockBookings, mockEvents, mockNotifications, mockUsers } from './mock-data';
 
-type Snapshot = {
-  events: EventRecord[];
-  bookings: BookingRecord[];
-  users: UserRecord[];
-  notifications: NotificationRecord[];
-  activities: ActivityRecord[];
+const STORAGE_KEY = 'eventhub-admin-config';
+
+const DEFAULT_CONFIG: ApiConfig = {
+  authBaseUrl: 'http://localhost:9090',
+  eventBaseUrl: 'http://localhost:9090',
+  bookingBaseUrl: 'http://localhost:9090',
+  notificationBaseUrl: 'http://localhost:9090',
+  authToken: '',
+  refreshToken: '',
 };
 
 @Injectable({ providedIn: 'root' })
 export class AdminDataService {
-  private readonly eventsSignal = signal<EventRecord[]>(mockEvents);
-  private readonly bookingsSignal = signal<BookingRecord[]>(mockBookings);
-  private readonly usersSignal = signal<UserRecord[]>(mockUsers);
-  private readonly notificationsSignal = signal<NotificationRecord[]>(mockNotifications);
-  private readonly activitiesSignal = signal<ActivityRecord[]>(mockActivities);
-  private readonly undoStack = signal<Snapshot[]>([]);
-  private readonly redoStack = signal<Snapshot[]>([]);
+  private readonly http = inject(HttpClient);
+  private readonly document = inject(DOCUMENT);
+  private readonly configSignal = signal<ApiConfig>(this.loadConfig());
 
-  readonly events = this.eventsSignal.asReadonly();
-  readonly bookings = this.bookingsSignal.asReadonly();
-  readonly users = this.usersSignal.asReadonly();
-  readonly notifications = this.notificationsSignal.asReadonly();
-  readonly activities = this.activitiesSignal.asReadonly();
-  readonly canUndo = computed(() => this.undoStack().length > 0);
-  readonly canRedo = computed(() => this.redoStack().length > 0);
+  readonly config = this.configSignal.asReadonly();
+  readonly hasToken = computed(() => Boolean(this.configSignal().authToken.trim()));
 
-  readonly dashboardStats = computed<DashboardStat[]>(() => {
-    const bookings = this.bookings();
-    const revenue = bookings
-      .filter((booking) => booking.paymentStatus === 'completed')
-      .reduce((sum, booking) => sum + booking.totalAmount, 0);
-
-    return [
-      { label: 'Total Users', value: this.formatInteger(this.users().length), trend: '+8.2%', direction: 'up' },
-      { label: 'Total Events', value: this.formatInteger(this.events().length), trend: '+3 new', direction: 'up' },
-      { label: 'Total Bookings', value: this.formatInteger(bookings.length), trend: '+12.4%', direction: 'up' },
-      { label: 'Revenue', value: this.formatCurrency(revenue), trend: '-1.8%', direction: 'down' },
-    ];
-  });
-
-  readonly bookingTrend7 = computed(() => this.createTrend(7, 48));
-  readonly bookingTrend30 = computed(() => this.createTrend(30, 36));
-  readonly eventPerformance = computed<TrendPoint[]>(() =>
-    this.events()
-      .slice()
-      .sort((a, b) => b.sold - a.sold)
-      .slice(0, 6)
-      .map((event) => ({ label: event.name, value: event.sold })),
-  );
-  readonly revenuePerformance = computed<TrendPoint[]>(() =>
-    this.events()
-      .slice()
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 6)
-      .map((event) => ({ label: event.name, value: event.revenue })),
-  );
-  readonly bookingStatusDistribution = computed<TrendPoint[]>(() => {
-    const bookings = this.bookings();
-    return [
-      { label: 'Confirmed', value: bookings.filter((item) => item.status === 'confirmed').length },
-      { label: 'Pending', value: bookings.filter((item) => item.status === 'pending').length },
-      { label: 'Cancelled', value: bookings.filter((item) => item.status === 'cancelled').length },
-    ];
-  });
-  readonly notificationStats = computed(() => {
-    const notifications = this.notifications();
-    return {
-      sent: notifications.filter((item) => item.status === 'sent').length,
-      pending: notifications.filter((item) => item.status === 'pending').length,
-      failed: notifications.filter((item) => item.status === 'failed').length,
-    };
-  });
-
-  addEvent(event: EventRecord): void {
-    this.captureSnapshot();
-    this.eventsSignal.update((events) => [event, ...events]);
-    this.prependActivity('Event added', `${event.name} was created and saved to the catalog.`, 'event');
+  login(request: LoginRequest): Observable<LoginResponse> {
+    return this.http
+      .post<StandardResponse<LoginResponse>>(`${this.config().authBaseUrl}/user-service/api/v1/users/visitors/login`, request)
+      .pipe(map((response) => response.data));
   }
 
-  updateEvent(updated: EventRecord): void {
-    this.captureSnapshot();
-    this.eventsSignal.update((events) => events.map((event) => (event.id === updated.id ? updated : event)));
-    this.prependActivity('Event updated', `${updated.name} details were updated by admin.`, 'event');
+  refreshAccessToken(): Observable<LoginResponse> {
+    return this.http
+      .post<StandardResponse<LoginResponse>>(
+        `${this.config().authBaseUrl}/user-service/api/v1/users/visitors/refresh-token`,
+        { refreshToken: this.getRefreshToken() },
+      )
+      .pipe(map((response) => response.data));
   }
 
-  deleteEvent(eventId: string): void {
-    const event = this.events().find((item) => item.id === eventId);
-    if (!event) {
-      return;
+  updateConfig(patch: Partial<ApiConfig>): void {
+    const next = { ...this.configSignal(), ...patch };
+    this.configSignal.set(next);
+    this.document.defaultView?.localStorage?.setItem(STORAGE_KEY, JSON.stringify(next));
+  }
+
+  setToken(token: string): void {
+    this.updateConfig({ authToken: token });
+  }
+
+  setAuthSession(response: LoginResponse): void {
+    this.updateConfig({
+      authToken: response.access_token ?? '',
+      refreshToken: response.refresh_token ?? '',
+    });
+  }
+
+  getToken(): string {
+    return this.config().authToken.trim();
+  }
+
+  getRefreshToken(): string {
+    return this.config().refreshToken.trim();
+  }
+
+  logout(): void {
+    this.updateConfig({ authToken: '', refreshToken: '' });
+  }
+
+  getProfile(): Observable<AdminProfile> {
+    return this.http
+      .get<StandardResponse<AdminProfile>>(`${this.config().authBaseUrl}/user-service/api/v1/users/get-user-details`, {
+        headers: this.authHeaders(),
+      })
+      .pipe(map((response) => response.data));
+  }
+
+  updateProfile(request: { firstName: string; lastName: string }): Observable<void> {
+    return this.http
+      .put<StandardResponse<null>>(`${this.config().authBaseUrl}/user-service/api/v1/users/update-user-details`, request, {
+        headers: this.authHeaders(),
+      })
+      .pipe(map(() => void 0));
+  }
+
+  requestPasswordResetCode(email: string): Observable<void> {
+    const params = new HttpParams().set('email', email);
+    return this.http
+      .post<StandardResponse<null>>(
+        `${this.config().authBaseUrl}/user-service/api/v1/users/visitors/forget-password-request-code`,
+        null,
+        { params },
+      )
+      .pipe(map(() => void 0));
+  }
+
+  resetPassword(request: { email: string; password: string; code: string }): Observable<boolean> {
+    return this.http
+      .post<StandardResponse<boolean>>(`${this.config().authBaseUrl}/user-service/api/v1/users/visitors/reset-password`, request)
+      .pipe(map((response) => Boolean(response.data)));
+  }
+
+  uploadAvatar(file: File): Observable<void> {
+    const payload = new FormData();
+    payload.append('avatar', file);
+
+    return this.http
+      .post<StandardResponse<null>>(`${this.config().authBaseUrl}/user-service/api/v1/avatars/user/manage-avatar`, payload, {
+        headers: this.authHeaders(),
+      })
+      .pipe(map(() => void 0));
+  }
+
+  getCategories(): Observable<CategoryRecord[]> {
+    return this.http
+      .get<CategoryRecord[]>(`${this.config().eventBaseUrl}/event-service/api/v1/events/categories`)
+      .pipe(map((categories) => categories ?? []));
+  }
+
+  createCategory(request: { name: string; description: string }): Observable<ApiMessageResponse> {
+    return this.http.post<ApiMessageResponse>(`${this.config().eventBaseUrl}/event-service/api/v1/categories`, request, {
+      headers: this.authHeaders(),
+    });
+  }
+
+  updateCategory(categoryId: number, request: { name: string; description: string }): Observable<ApiMessageResponse> {
+    return this.http.put<ApiMessageResponse>(
+      `${this.config().eventBaseUrl}/event-service/api/v1/categories/${categoryId}`,
+      request,
+      { headers: this.authHeaders() },
+    );
+  }
+
+  deleteCategory(categoryId: number): Observable<ApiMessageResponse> {
+    return this.http.delete<ApiMessageResponse>(`${this.config().eventBaseUrl}/event-service/api/v1/categories/${categoryId}`, {
+      headers: this.authHeaders(),
+    });
+  }
+
+  getEvents(filters: { search?: string; status?: string; page?: number; size?: number }): Observable<PaginatedEvents> {
+    let params = new HttpParams()
+      .set('page', String(filters.page ?? 0))
+      .set('size', String(filters.size ?? 10));
+
+    if (filters.search?.trim()) {
+      params = params.set('search', filters.search.trim());
+    }
+    if (filters.status?.trim()) {
+      params = params.set('status', filters.status.trim());
     }
 
-    this.captureSnapshot();
-    this.eventsSignal.update((events) => events.filter((item) => item.id !== eventId));
-    this.prependActivity('Event removed', `${event.name} was removed from the catalog.`, 'event');
+    return this.http.get<PaginatedEvents>(`${this.config().eventBaseUrl}/event-service/api/v1/events/admin/all`, {
+      headers: this.authHeaders(),
+      params,
+    });
   }
 
-  cancelBooking(bookingId: string): void {
-    this.captureSnapshot();
-    this.bookingsSignal.update((bookings) =>
-      bookings.map((booking) =>
-        booking.id === bookingId ? { ...booking, status: 'cancelled', paymentStatus: 'failed' } : booking,
-      ),
-    );
-    this.prependActivity('Booking cancelled', `${bookingId} was cancelled and marked for customer follow-up.`, 'booking');
+  getEvent(eventId: number): Observable<EventDetail> {
+    return this.http.get<EventDetail>(`${this.config().eventBaseUrl}/event-service/api/v1/events/admin/${eventId}`, {
+      headers: this.authHeaders(),
+    });
   }
 
-  toggleUserStatus(userId: string): void {
-    this.captureSnapshot();
-    this.usersSignal.update((users) =>
-      users.map((user) =>
-        user.id === userId
-          ? { ...user, status: user.status === 'active' ? 'inactive' : 'active' }
-          : user,
-      ),
+  createEvent(form: EventFormValue): Observable<ApiMessageResponse> {
+    return this.http.post<ApiMessageResponse>(`${this.config().eventBaseUrl}/event-service/api/v1/events`, this.toEventFormData(form, true), {
+      headers: this.authHeaders(),
+    });
+  }
+
+  updateEvent(eventId: number, form: EventFormValue): Observable<ApiMessageResponse> {
+    return this.http.put<ApiMessageResponse>(
+      `${this.config().eventBaseUrl}/event-service/api/v1/events/${eventId}`,
+      this.toEventFormData(form, false),
+      { headers: this.authHeaders() },
     );
-    const user = this.usersSignal().find((item) => item.id === userId);
-    if (user) {
-      this.prependActivity('User access changed', `${user.name} access state was updated.`, 'user');
+  }
+
+  updateEventStatus(eventId: number, status: string): Observable<ApiMessageResponse> {
+    return this.http.patch<ApiMessageResponse>(
+      `${this.config().eventBaseUrl}/event-service/api/v1/events/${eventId}/status`,
+      { status },
+      { headers: this.authHeaders() },
+    );
+  }
+
+  deleteEvent(eventId: number): Observable<ApiMessageResponse> {
+    return this.http.delete<ApiMessageResponse>(`${this.config().eventBaseUrl}/event-service/api/v1/events/${eventId}`, {
+      headers: this.authHeaders(),
+    });
+  }
+
+  getBookingStats(): Observable<BookingStats> {
+    return this.http.get<BookingStats>(`${this.config().bookingBaseUrl}/booking-service/api/v1/admin/stats`, {
+      headers: this.authHeaders(),
+    });
+  }
+
+  getBookings(filters: {
+    status?: string;
+    eventId?: string;
+    userId?: string;
+    userEmail?: string;
+    page?: number;
+    size?: number;
+  }): Observable<PaginatedBookings> {
+    let params = new HttpParams()
+      .set('page', String(filters.page ?? 0))
+      .set('size', String(filters.size ?? 10));
+
+    if (filters.status?.trim()) {
+      params = params.set('status', filters.status.trim());
     }
-  }
-
-  retryNotification(notificationId: string): void {
-    this.captureSnapshot();
-    this.notificationsSignal.update((items) =>
-      items.map((notification) =>
-        notification.id === notificationId
-          ? { ...notification, retryCount: notification.retryCount + 1, status: 'sent', sentAt: new Date().toISOString() }
-          : notification,
-      ),
-    );
-    this.prependActivity('Notification retried', `${notificationId} was retried successfully and delivered.`, 'notification');
-  }
-
-  resendNotification(notificationId: string): void {
-    this.captureSnapshot();
-    this.notificationsSignal.update((items) =>
-      items.map((notification) =>
-        notification.id === notificationId
-          ? { ...notification, status: 'sent', sentAt: new Date().toISOString() }
-          : notification,
-      ),
-    );
-    this.prependActivity('Notification resent', `${notificationId} was resent from the admin console.`, 'notification');
-  }
-
-  undo(): void {
-    const previous = this.undoStack().at(-1);
-    if (!previous) {
-      return;
+    if (filters.eventId?.trim()) {
+      params = params.set('eventId', filters.eventId.trim());
+    }
+    if (filters.userId?.trim()) {
+      params = params.set('userId', filters.userId.trim());
+    }
+    if (filters.userEmail?.trim()) {
+      params = params.set('userEmail', filters.userEmail.trim());
     }
 
-    this.redoStack.update((stack) => [...stack, this.snapshot()]);
-    this.restore(previous);
-    this.undoStack.update((stack) => stack.slice(0, -1));
+    return this.http.get<PaginatedBookings>(`${this.config().bookingBaseUrl}/booking-service/api/v1/admin/all`, {
+      headers: this.authHeaders(),
+      params,
+    });
   }
 
-  redo(): void {
-    const next = this.redoStack().at(-1);
-    if (!next) {
-      return;
+  getBooking(bookingId: number): Observable<BookingDetail> {
+    return this.http.get<BookingDetail>(`${this.config().bookingBaseUrl}/booking-service/api/v1/bookings/${bookingId}`, {
+      headers: this.authHeaders(),
+    });
+  }
+
+  getUsers(filters: { page?: number; size?: number }): Observable<PaginatedUsers> {
+    const params = new HttpParams()
+      .set('page', String(filters.page ?? 0))
+      .set('size', String(filters.size ?? 20));
+
+    return this.http
+      .get<StandardResponse<PaginatedUsers>>(`${this.config().authBaseUrl}/user-service/api/v1/users/all`, {
+        headers: this.authHeaders(),
+        params,
+      })
+      .pipe(map((response) => response.data));
+  }
+
+  getNotificationStats(): Observable<NotificationStats> {
+    return this.http
+      .get<StandardResponse<NotificationStats>>(
+        `${this.config().notificationBaseUrl}/notification-service/api/v1/admin/notifications/stats`,
+        {},
+      )
+      .pipe(map((response) => response.data));
+  }
+
+  getNotificationLogs(filters: {
+    type?: string;
+    status?: string;
+    email?: string;
+    page?: number;
+    limit?: number;
+  }): Observable<NotificationLogPage> {
+    let params = new HttpParams()
+      .set('page', String(filters.page ?? 1))
+      .set('limit', String(filters.limit ?? 10));
+
+    if (filters.type?.trim()) {
+      params = params.set('type', filters.type.trim());
+    }
+    if (filters.status?.trim()) {
+      params = params.set('status', filters.status.trim());
+    }
+    if (filters.email?.trim()) {
+      params = params.set('email', filters.email.trim());
     }
 
-    this.undoStack.update((stack) => [...stack, this.snapshot()]);
-    this.restore(next);
-    this.redoStack.update((stack) => stack.slice(0, -1));
+    return this.http
+      .get<StandardResponse<NotificationLogPage>>(
+        `${this.config().notificationBaseUrl}/notification-service/api/v1/admin/notifications/logs`,
+        {
+          params,
+        },
+      )
+      .pipe(map((response) => response.data));
   }
 
-  exportCsv(kind: 'events' | 'bookings' | 'users' | 'notifications'): string {
-    const map = {
-      events: this.events(),
-      bookings: this.bookings(),
-      users: this.users(),
-      notifications: this.notifications(),
-    };
-    const rows = map[kind];
-    const headers = Object.keys(rows[0] ?? {});
-    const body = rows.map((row) =>
-      headers.map((header) => JSON.stringify(String(row[header as keyof typeof row] ?? ''))).join(','),
-    );
-
-    return [headers.join(','), ...body].join('\n');
+  getFailedNotifications(): Observable<NotificationLog[]> {
+    return this.http
+      .get<StandardResponse<NotificationLog[]>>(
+        `${this.config().notificationBaseUrl}/notification-service/api/v1/admin/notifications/failed`,
+        {},
+      )
+      .pipe(map((response) => response.data ?? []));
   }
 
-  private createTrend(days: number, baseline: number): TrendPoint[] {
-    return Array.from({ length: days }, (_, index) => ({
-      label: days === 7 ? `D${index + 1}` : `${index + 1}`,
-      value: baseline + ((index * 7) % 21) + (index % 3) * 5,
-    }));
+  retryNotification(notificationId: string): Observable<NotificationLog> {
+    return this.http
+      .post<StandardResponse<NotificationLog>>(
+        `${this.config().notificationBaseUrl}/notification-service/api/v1/admin/notifications/failed/${notificationId}/retry`,
+        {},
+        {},
+      )
+      .pipe(map((response) => response.data));
   }
 
-  private captureSnapshot(): void {
-    this.undoStack.update((stack) => [...stack, this.snapshot()]);
-    this.redoStack.set([]);
+  sendHostPassword(request: { email: string; password: string; firstName: string }): Observable<NotificationLog> {
+    return this.http
+      .post<StandardResponse<NotificationLog>>(
+        `${this.config().notificationBaseUrl}/notification-service/api/v1/admin/notifications/send-host-password`,
+        request,
+        {},
+      )
+      .pipe(map((response) => response.data));
   }
 
-  private snapshot(): Snapshot {
-    return {
-      events: structuredClone(this.events()),
-      bookings: structuredClone(this.bookings()),
-      users: structuredClone(this.users()),
-      notifications: structuredClone(this.notifications()),
-      activities: structuredClone(this.activities()),
-    };
+  private authHeaders(): HttpHeaders {
+    const token = this.getToken();
+    return token ? new HttpHeaders({ Authorization: `Bearer ${token}` }) : new HttpHeaders();
   }
 
-  private restore(snapshot: Snapshot): void {
-    this.eventsSignal.set(snapshot.events);
-    this.bookingsSignal.set(snapshot.bookings);
-    this.usersSignal.set(snapshot.users);
-    this.notificationsSignal.set(snapshot.notifications);
-    this.activitiesSignal.set(snapshot.activities);
-  }
-
-  private prependActivity(title: string, detail: string, type: ActivityRecord['type']): void {
-    this.activitiesSignal.update((activities) => [
-      {
-        id: `ACT-${Date.now()}`,
-        title,
-        detail,
-        type,
-        timestamp: new Date().toISOString(),
+  private toEventFormData(form: EventFormValue, includeStatus: boolean): FormData {
+    const payload: Record<string, unknown> = {
+      title: form.title,
+      description: form.description,
+      categoryId: form.categoryId,
+      venue: {
+        name: form.venueName,
+        city: form.venueCity,
+        address: form.venueAddress,
       },
-      ...activities,
-    ]);
+      startDateTime: this.toIsoDateTime(form.startDateTime),
+      endDateTime: this.toIsoDateTime(form.endDateTime),
+      ticketTypes: form.ticketTypes.map((ticket) => ({
+        ...(ticket.id ? { id: ticket.id } : {}),
+        name: ticket.name,
+        price: ticket.price,
+        totalQuantity: ticket.totalQuantity,
+      })),
+    };
+
+    if (includeStatus) {
+      payload['status'] = form.status;
+      payload['createdBy'] = this.resolveCurrentUserId();
+    }
+
+    const formData = new FormData();
+    formData.append('request', JSON.stringify(payload));
+    if (form.bannerFile) {
+      formData.append('bannerimg', form.bannerFile);
+    }
+    return formData;
   }
 
-  private formatCurrency(value: number): string {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+  private toIsoDateTime(value: string): string {
+    return value ? new Date(value).toISOString() : value;
   }
 
-  private formatInteger(value: number): string {
-    return new Intl.NumberFormat('en-US').format(value);
+  private resolveCurrentUserId(): string {
+    const token = this.getToken();
+    if (!token) {
+      return 'unknown';
+    }
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1] ?? ''));
+      return (payload?.sub as string) || 'unknown';
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  private loadConfig(): ApiConfig {
+    const raw = this.document.defaultView?.localStorage?.getItem(STORAGE_KEY);
+    if (!raw) {
+      return DEFAULT_CONFIG;
+    }
+
+    try {
+      return { ...DEFAULT_CONFIG, ...(JSON.parse(raw) as Partial<ApiConfig>) };
+    } catch {
+      return DEFAULT_CONFIG;
+    }
   }
 }

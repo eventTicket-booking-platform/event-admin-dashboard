@@ -1,80 +1,207 @@
-export type EventStatus = 'draft' | 'published' | 'cancelled';
-export type BookingStatus = 'pending' | 'confirmed' | 'cancelled';
-export type PaymentStatus = 'pending' | 'completed' | 'failed';
-export type UserRole = 'admin' | 'manager' | 'user';
-export type UserStatus = 'active' | 'inactive';
-export type NotificationType = 'email' | 'sms' | 'push';
-export type NotificationStatus = 'pending' | 'sent' | 'failed';
-
-export interface EventRecord {
-  id: string;
-  name: string;
-  category: string;
-  date: string;
-  time: string;
-  location: string;
-  capacity: number;
-  sold: number;
-  status: EventStatus;
-  description: string;
-  ticketPrice: number;
-  revenue: number;
-  thumbnail: string;
+export interface ApiConfig {
+  authBaseUrl: string;
+  eventBaseUrl: string;
+  bookingBaseUrl: string;
+  notificationBaseUrl: string;
+  authToken: string;
+  refreshToken: string;
 }
 
-export interface BookingRecord {
-  id: string;
-  customerId: string;
-  customerName: string;
-  customerEmail: string;
-  eventId: string;
-  eventName: string;
-  ticketsCount: number;
+export interface StandardResponse<T> {
+  code: number;
+  message: string;
+  data: T;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  expires_in?: number;
+  refresh_expires_in?: number;
+  refresh_token?: string;
+  token_type?: string;
+  session_state?: string;
+  scope?: string;
+}
+
+export interface AdminProfile {
+  email: string;
+  firstName: string;
+  lastName: string;
+  role?: string;
+  resourceUrl: string | null;
+}
+
+export interface CategoryRecord {
+  categoryId: number;
+  name: string;
+  description: string;
+  active: boolean;
+}
+
+export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELLED';
+
+export interface EventSummary {
+  eventId: number;
+  title: string;
+  categoryName: string;
+  city: string;
+  bannerUrl: string | null;
+  startDateTime: string;
+  endDateTime: string;
+  status: EventStatus;
+}
+
+export interface VenueRecord {
+  name: string;
+  city: string;
+  address: string;
+}
+
+export interface TicketTypeRecord {
+  id?: number;
+  name: string;
+  price: number;
+  totalQuantity: number;
+}
+
+export interface EventDetail {
+  eventId: number;
+  title: string;
+  description: string;
+  category: CategoryRecord;
+  venue: VenueRecord;
+  bannerUrl: string | null;
+  startDateTime: string;
+  endDateTime: string;
+  status: EventStatus;
+  ticketTypes: TicketTypeRecord[];
+}
+
+export interface PaginatedEvents {
+  dataList: EventSummary[];
+  dataCount: number;
+}
+
+export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'FAILED';
+
+export interface BookingSummary {
+  bookingId: number;
+  bookingReference: string;
+  userId: string;
+  eventId: number;
+  eventTitle: string;
+  status: BookingStatus;
   totalAmount: number;
   bookingDate: string;
+}
+
+export interface BookingStats {
+  totalBookings: number;
+  confirmedBookings: number;
+  cancelledBookings: number;
+  failedBookings: number;
+  totalRevenue: number;
+}
+
+export interface BookingItem {
+  ticketTypeId?: number;
+  ticketTypeName?: string;
+  quantity: number;
+  price: number;
+  subtotal?: number;
+}
+
+export interface PaymentDetail {
+  paymentId?: number;
+  method?: string;
+  status?: string;
+  amount?: number;
+  paidAt?: string;
+}
+
+export interface BookingDetail {
+  bookingId: number;
+  bookingReference: string;
+  userId: string;
+  eventId: number;
+  eventTitle: string;
+  eventStartDateTime: string;
   status: BookingStatus;
-  paymentStatus: PaymentStatus;
+  totalAmount: number;
+  bookingDate: string;
+  items: BookingItem[];
+  payment: PaymentDetail | null;
 }
 
-export interface UserRecord {
-  id: string;
-  name: string;
+export interface PaginatedBookings {
+  dataList: BookingSummary[];
+  dataCount: number;
+}
+
+export interface UserSummary {
+  userId: string;
   email: string;
-  role: UserRole;
-  joinDate: string;
-  lastLogin: string;
-  status: UserStatus;
-  bookingCount: number;
-  totalSpent: number;
+  firstName: string;
+  lastName: string;
+  role: string;
+  resourceUrl: string | null;
 }
 
-export interface NotificationRecord {
-  id: string;
-  type: NotificationType;
-  recipientId: string;
-  recipient: string;
+export interface PaginatedUsers {
+  dataList: UserSummary[];
+  dataCount: number;
+}
+
+export interface NotificationStats {
+  totalNotifications: number;
+  sentCount: number;
+  failedCount: number;
+  unreadCount: number;
+}
+
+export interface NotificationLog {
+  _id: string;
+  email: string;
+  type: string;
+  subject: string;
   message: string;
-  sentAt: string;
-  status: NotificationStatus;
-  retryCount: number;
+  status: string;
+  failureReason?: string | null;
+  isRead?: boolean;
+  createdAt: string;
+  updatedAt?: string;
 }
 
-export interface ActivityRecord {
-  id: string;
+export interface NotificationLogPage {
+  logs: NotificationLog[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface ApiMessageResponse {
+  message: string;
+  status?: number;
+}
+
+export interface EventFormValue {
   title: string;
-  detail: string;
-  type: 'booking' | 'event' | 'user' | 'notification' | 'system';
-  timestamp: string;
-}
-
-export interface DashboardStat {
-  label: string;
-  value: string;
-  trend: string;
-  direction: 'up' | 'down';
-}
-
-export interface TrendPoint {
-  label: string;
-  value: number;
+  description: string;
+  categoryId: number | null;
+  venueName: string;
+  venueCity: string;
+  venueAddress: string;
+  startDateTime: string;
+  endDateTime: string;
+  status: EventStatus;
+  ticketTypes: TicketTypeRecord[];
+  bannerFile: File | null;
 }

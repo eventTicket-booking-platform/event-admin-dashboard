@@ -1,137 +1,202 @@
 import { DatePipe } from '@angular/common';
-import { AfterViewInit, Component, ViewChild, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
+import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatSort, MatSortModule } from '@angular/material/sort';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { forkJoin } from 'rxjs';
 import { AdminDataService } from '../../core/services/admin-data.service';
-import { NotificationRecord } from '../../models';
+import { SnackbarService } from '../../core/services/snackbar.service';
+import { NotificationLog, NotificationStats } from '../../models';
 
 @Component({
   selector: 'app-notifications',
-  imports: [
-    DatePipe,
-    MatButtonModule,
-    MatCardModule,
-    MatFormFieldModule,
-    MatIconModule,
-    MatPaginatorModule,
-    MatSelectModule,
-    MatSnackBarModule,
-    MatSortModule,
-    MatTableModule,
-    ReactiveFormsModule,
-  ],
+  imports: [DatePipe, MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule, ReactiveFormsModule],
   template: `
-    <section class="page-head">
-      <div>
-        <p class="page-head__eyebrow">Outbound delivery</p>
-        <h2>Notifications Management</h2>
-        <p class="page-head__copy">Observe send health, retry failures, and resend communications.</p>
-      </div>
+    <section class="page-actions">
+      <button mat-flat-button (click)="load()">Refresh</button>
     </section>
 
     <section class="stats-grid stats-grid--compact">
-      <mat-card class="stats-card"><p>Sent</p><h3>{{ data.notificationStats().sent }}</h3></mat-card>
-      <mat-card class="stats-card"><p>Pending</p><h3>{{ data.notificationStats().pending }}</h3></mat-card>
-      <mat-card class="stats-card"><p>Failed</p><h3>{{ data.notificationStats().failed }}</h3></mat-card>
+      <mat-card class="stats-card"><p>Total</p><h3>{{ stats()?.totalNotifications ?? '-' }}</h3></mat-card>
+      <mat-card class="stats-card"><p>Sent</p><h3>{{ stats()?.sentCount ?? '-' }}</h3></mat-card>
+      <mat-card class="stats-card"><p>Failed</p><h3>{{ stats()?.failedCount ?? '-' }}</h3></mat-card>
     </section>
 
     <mat-card class="panel">
-      <form [formGroup]="filters" class="filters-grid">
+      <form [formGroup]="filters" class="filters-grid filters-grid--three">
         <mat-form-field appearance="outline">
           <mat-label>Type</mat-label>
-          <mat-select formControlName="type">
-            <mat-option value="">All</mat-option>
-            <mat-option value="email">Email</mat-option>
-            <mat-option value="sms">SMS</mat-option>
-            <mat-option value="push">Push</mat-option>
-          </mat-select>
+          <input matInput formControlName="type" placeholder="EMAIL_VERIFICATION_OTP" />
         </mat-form-field>
         <mat-form-field appearance="outline">
           <mat-label>Status</mat-label>
-          <mat-select formControlName="status">
-            <mat-option value="">All</mat-option>
-            <mat-option value="pending">Pending</mat-option>
-            <mat-option value="sent">Sent</mat-option>
-            <mat-option value="failed">Failed</mat-option>
-          </mat-select>
+          <input matInput formControlName="status" placeholder="SENT or FAILED" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Email</mat-label>
+          <input matInput formControlName="email" />
         </mat-form-field>
       </form>
-
-      @if (loading()) {
-        <div class="skeleton-table">@for (row of [1,2,3,4,5,6]; track row) { <div class="skeleton-table__row"></div> }</div>
-      } @else {
-        <div class="table-wrapper">
-          <table mat-table [dataSource]="dataSource" matSort>
-            <ng-container matColumnDef="type"><th mat-header-cell *matHeaderCellDef mat-sort-header>Type</th><td mat-cell *matCellDef="let row">{{ row.type }}</td></ng-container>
-            <ng-container matColumnDef="recipient"><th mat-header-cell *matHeaderCellDef mat-sort-header>Recipient</th><td mat-cell *matCellDef="let row">{{ row.recipient }}</td></ng-container>
-            <ng-container matColumnDef="message"><th mat-header-cell *matHeaderCellDef>Message</th><td mat-cell *matCellDef="let row">{{ row.message }}</td></ng-container>
-            <ng-container matColumnDef="sentAt"><th mat-header-cell *matHeaderCellDef mat-sort-header>Date/Time</th><td mat-cell *matCellDef="let row">{{ row.sentAt | date: 'short' }}</td></ng-container>
-            <ng-container matColumnDef="status"><th mat-header-cell *matHeaderCellDef mat-sort-header>Status</th><td mat-cell *matCellDef="let row"><span class="status-badge status-badge--{{ row.status }}">{{ row.status }}</span></td></ng-container>
-            <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef>Actions</th>
-              <td mat-cell *matCellDef="let row">
-                <button mat-icon-button (click)="retry(row)" [disabled]="row.status !== 'failed'"><mat-icon>refresh</mat-icon></button>
-                <button mat-icon-button (click)="resend(row)"><mat-icon>send</mat-icon></button>
-              </td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-          </table>
-        </div>
-        <mat-paginator [pageSizeOptions]="[10,25,50]" [pageSize]="10"></mat-paginator>
-      }
     </mat-card>
+
+    <section class="content-grid">
+      <mat-card class="panel">
+        <div class="panel__header">
+          <div>
+            <h3>Notification logs</h3>
+            <p>{{ logs().length }} records from the notification logs endpoint.</p>
+          </div>
+        </div>
+        <div class="data-list">
+          @for (log of logs(); track log._id) {
+            <div class="data-row">
+              <div class="data-row__main">
+                <strong>{{ log.subject }}</strong>
+                <p>{{ log.email }} · {{ log.type }}</p>
+                <span>{{ log.createdAt | date: 'medium' }}</span>
+              </div>
+              <div class="data-row__side">
+                <span class="status-badge status-badge--{{ log.status.toLowerCase() }}">{{ log.status }}</span>
+              </div>
+            </div>
+          } @empty {
+            <p class="muted-copy">No logs found.</p>
+          }
+        </div>
+      </mat-card>
+
+      <div class="stack-grid">
+        <mat-card class="panel">
+          <div class="panel__header">
+            <div>
+              <h3>Failed notifications</h3>
+              <p>Retry only supported failed entries.</p>
+            </div>
+          </div>
+          <div class="simple-list">
+            @for (item of failed(); track item._id) {
+              <div class="simple-list__item">
+                <div>
+                  <strong>{{ item.email }}</strong>
+                  <p>{{ item.failureReason || 'Retry available' }}</p>
+                </div>
+                <button mat-stroked-button (click)="retry(item._id)">Retry</button>
+              </div>
+            } @empty {
+              <p class="muted-copy">No failed notifications.</p>
+            }
+          </div>
+        </mat-card>
+
+        <mat-card class="panel">
+          <div class="panel__header">
+            <div>
+              <h3>Send host password</h3>
+              <p>Sends the host password email through the notification admin API.</p>
+            </div>
+          </div>
+          <form [formGroup]="hostPasswordForm" class="form-stack" (ngSubmit)="sendHostPassword()">
+            <mat-form-field appearance="outline">
+              <mat-label>Email</mat-label>
+              <input matInput formControlName="email" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>First name</mat-label>
+              <input matInput formControlName="firstName" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Password</mat-label>
+              <input matInput formControlName="password" />
+            </mat-form-field>
+            <button mat-flat-button type="submit" [disabled]="hostPasswordForm.invalid">Send email</button>
+          </form>
+        </mat-card>
+      </div>
+    </section>
   `,
 })
-export class NotificationsComponent implements AfterViewInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
-
+export class NotificationsComponent {
   private readonly fb = inject(FormBuilder);
-  private readonly snackBar = inject(MatSnackBar);
-  readonly data = inject(AdminDataService);
-  readonly loading = signal(true);
-  readonly displayedColumns = ['type', 'recipient', 'message', 'sentAt', 'status', 'actions'];
-  readonly dataSource = new MatTableDataSource<NotificationRecord>(this.data.notifications());
-  readonly filters = this.fb.nonNullable.group({ type: [''], status: [''] });
+  private readonly data = inject(AdminDataService);
+  private readonly snackbar = inject(SnackbarService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly stats = signal<NotificationStats | null>(null);
+  readonly logs = signal<NotificationLog[]>([]);
+  readonly failed = signal<NotificationLog[]>([]);
+
+  readonly filters = this.fb.nonNullable.group({
+    type: [''],
+    status: [''],
+    email: [''],
+  });
+
+  readonly hostPasswordForm = this.fb.nonNullable.group({
+    email: ['', [Validators.required, Validators.email]],
+    firstName: ['', Validators.required],
+    password: ['', Validators.required],
+  });
 
   constructor() {
-    setTimeout(() => this.loading.set(false), 950);
-    this.dataSource.filterPredicate = (record, filter) => {
-      const parsed = JSON.parse(filter) as { type: string; status: string };
-      return (!parsed.type || record.type === parsed.type) && (!parsed.status || record.status === parsed.status);
-    };
-    this.filters.valueChanges.subscribe(() => this.applyFilters());
+    this.filters.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load());
+    this.load();
   }
 
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
+  load(): void {
+    forkJoin({
+      stats: this.data.getNotificationStats(),
+      logs: this.data.getNotificationLogs({ ...this.filters.getRawValue(), page: 1, limit: 20 }),
+      failed: this.data.getFailedNotifications(),
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ stats, logs, failed }) => {
+          this.stats.set(stats);
+          this.logs.set(logs.logs ?? []);
+          this.failed.set(failed ?? []);
+        },
+        error: (error: { error?: { message?: string }; message?: string }) => {
+          this.snackbar.error(error.error?.message || error.message || 'Unable to load notifications.');
+        },
+      });
   }
 
-  retry(record: NotificationRecord): void {
-    this.data.retryNotification(record.id);
-    this.dataSource.data = this.data.notifications();
-    this.applyFilters();
-    this.snackBar.open(`Retry succeeded for ${record.recipient}.`, 'Close', { duration: 2500 });
+  retry(notificationId: string): void {
+    this.data
+      .retryNotification(notificationId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.snackbar.success('Notification retried.');
+          this.load();
+        },
+        error: (error: { error?: { message?: string }; message?: string }) => {
+          this.snackbar.error(error.error?.message || error.message || 'Unable to retry notification.');
+        },
+      });
   }
 
-  resend(record: NotificationRecord): void {
-    this.data.resendNotification(record.id);
-    this.dataSource.data = this.data.notifications();
-    this.applyFilters();
-    this.snackBar.open(`Notification resent to ${record.recipient}.`, 'Close', { duration: 2500 });
-  }
+  sendHostPassword(): void {
+    if (this.hostPasswordForm.invalid) {
+      return;
+    }
 
-  private applyFilters(): void {
-    this.dataSource.filter = JSON.stringify(this.filters.getRawValue());
+    this.data
+      .sendHostPassword(this.hostPasswordForm.getRawValue())
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.snackbar.success('Host password email sent.');
+          this.hostPasswordForm.reset({ email: '', firstName: '', password: '' });
+          this.load();
+        },
+        error: (error: { error?: { message?: string }; message?: string }) => {
+          this.snackbar.error(error.error?.message || error.message || 'Unable to send host password email.');
+        },
+      });
   }
 }
