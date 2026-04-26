@@ -1,6 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, PLATFORM_ID, computed, inject, signal } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { map, Observable } from 'rxjs';
 import {
   AdminProfile,
@@ -24,19 +25,11 @@ import {
 
 const STORAGE_KEY = 'eventhub-admin-config';
 
-const DEFAULT_CONFIG: ApiConfig = {
-  authBaseUrl: 'http://localhost:9090',
-  eventBaseUrl: 'http://localhost:9090',
-  bookingBaseUrl: 'http://localhost:9090',
-  notificationBaseUrl: 'http://localhost:9090',
-  authToken: '',
-  refreshToken: '',
-};
-
 @Injectable({ providedIn: 'root' })
 export class AdminDataService {
   private readonly http = inject(HttpClient);
   private readonly document = inject(DOCUMENT);
+  private readonly platformId = inject(PLATFORM_ID);
   private readonly configSignal = signal<ApiConfig>(this.loadConfig());
 
   readonly config = this.configSignal.asReadonly();
@@ -390,15 +383,37 @@ export class AdminDataService {
   }
 
   private loadConfig(): ApiConfig {
+    const defaultConfig = this.defaultConfig();
     const raw = this.document.defaultView?.localStorage?.getItem(STORAGE_KEY);
     if (!raw) {
-      return DEFAULT_CONFIG;
+      return defaultConfig;
     }
 
     try {
-      return { ...DEFAULT_CONFIG, ...(JSON.parse(raw) as Partial<ApiConfig>) };
+      return { ...defaultConfig, ...(JSON.parse(raw) as Partial<ApiConfig>) };
     } catch {
-      return DEFAULT_CONFIG;
+      return defaultConfig;
     }
+  }
+
+  private defaultConfig(): ApiConfig {
+    const baseUrl = this.defaultBaseUrl();
+
+    return {
+      authBaseUrl: baseUrl,
+      eventBaseUrl: baseUrl,
+      bookingBaseUrl: baseUrl,
+      notificationBaseUrl: baseUrl,
+      authToken: '',
+      refreshToken: '',
+    };
+  }
+
+  private defaultBaseUrl(): string {
+    if (isPlatformBrowser(this.platformId)) {
+      return '/api';
+    }
+
+    return process.env['API_BASE_URL'] || '/api';
   }
 }

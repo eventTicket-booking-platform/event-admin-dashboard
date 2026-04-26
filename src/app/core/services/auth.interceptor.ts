@@ -11,7 +11,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const data = inject(AdminDataService);
   const router = inject(Router);
 
-  if (isPublicAuthRequest(req.url)) {
+  if (isPublicRequest(req)) {
     return next(req);
   }
 
@@ -129,9 +129,27 @@ function authError(message: string): HttpErrorResponse {
   });
 }
 
+function isPublicRequest(req: HttpRequest<unknown>): boolean {
+  const { url, method } = req;
+
+  if (method === 'GET' && isPublicEventReadRequest(url)) {
+    return true;
+  }
+
+  return isPublicAuthRequest(url);
+}
+
 function isPublicAuthRequest(url: string): boolean {
   return (
     url.includes('/user-service/api/v1/users/visitors/login') ||
     url.includes('/user-service/api/v1/users/visitors/refresh-token')
+  );
+}
+
+function isPublicEventReadRequest(url: string): boolean {
+  return (
+    url.includes('/event-service/api/v1/events/categories') ||
+    url.includes('/event-service/api/v1/events?') ||
+    url.endsWith('/event-service/api/v1/events')
   );
 }

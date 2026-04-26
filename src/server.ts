@@ -8,6 +8,7 @@ import express from 'express';
 import { join } from 'node:path';
 
 const browserDistFolder = join(import.meta.dirname, '../browser');
+const adminBasePath = '/admin';
 
 const app = express();
 const angularApp = new AngularNodeAppEngine();
@@ -27,7 +28,16 @@ const angularApp = new AngularNodeAppEngine();
 /**
  * Serve static files from /browser
  */
+app.get('/', (_req, res) => {
+  res.status(200).send('ok');
+});
+
+app.get(/^\/admin$/, (_req, res) => {
+  res.redirect(`${adminBasePath}/`);
+});
+
 app.use(
+  adminBasePath,
   express.static(browserDistFolder, {
     maxAge: '1y',
     index: false,
@@ -36,9 +46,9 @@ app.use(
 );
 
 /**
- * Handle all other requests by rendering the Angular application.
+ * Handle admin requests by rendering the Angular application under /admin.
  */
-app.use((req, res, next) => {
+app.use(adminBasePath, (req, res, next) => {
   angularApp
     .handle(req)
     .then((response) =>
