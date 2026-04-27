@@ -34,7 +34,7 @@ import { CategoryRecord, EventDetail, EventFormValue, EventStatus, EventSummary 
   template: `
     <section class="page-actions">
       <div class="page-actions__group">
-        <button mat-stroked-button (click)="startCreate()">New event</button>
+        <!-- <button mat-stroked-button (click)="startCreate()">New event</button> -->
         <button mat-flat-button (click)="load()">Refresh</button>
       </div>
     </section>
@@ -282,9 +282,9 @@ export class EventsComponent {
       });
   }
 
-  startCreate(): void {
-    this.resetForm();
-  }
+  // startCreate(): void {
+  //   this.resetForm();
+  // }
 
   inspect(eventId: number): void {
     this.data
