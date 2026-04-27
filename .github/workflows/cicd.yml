@@ -2,7 +2,7 @@ name: Build and Deploy (event-admin-dashboard)
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
   workflow_dispatch:
 
 env:
@@ -22,13 +22,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        with:
+          args: >
+            -Dsonar.projectKey=${{ env.IMAGE_REPOSITORY }}
+            -Dsonar.projectName=${{ env.IMAGE_REPOSITORY }}
+            -Dsonar.sources=.
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-        run: |
-          echo "Enable your frontend SonarQube scan here later."
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
