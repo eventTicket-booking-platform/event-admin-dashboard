@@ -64,7 +64,7 @@ import { CategoryRecord, EventDetail, EventFormValue, EventStatus, EventSummary 
       <mat-card class="panel">
         <div class="panel__header">
           <div>
-            <h3>Event list</h3>
+            <h3>Event list(cheak cicd)</h3>
             <p>{{ events().length }} records from admin list endpoint.</p>
           </div>
         </div>
@@ -78,11 +78,17 @@ import { CategoryRecord, EventDetail, EventFormValue, EventStatus, EventSummary 
                 <span>{{ event.startDateTime | date: 'medium' }}</span>
               </div>
               <div class="data-row__side">
-                <span class="status-badge status-badge--{{ event.status.toLowerCase() }}">{{ event.status }}</span>
+                <span class="status-badge status-badge--{{ event.status.toLowerCase() }}">{{
+                  event.status
+                }}</span>
                 <div class="inline-actions">
                   <button mat-button (click)="inspect(event.eventId)">Edit</button>
-                  <button mat-button (click)="changeStatus(event.eventId, 'PUBLISHED')">Publish</button>
-                  <button mat-button (click)="changeStatus(event.eventId, 'CANCELLED')">Cancel</button>
+                  <button mat-button (click)="changeStatus(event.eventId, 'PUBLISHED')">
+                    Publish
+                  </button>
+                  <button mat-button (click)="changeStatus(event.eventId, 'CANCELLED')">
+                    Cancel
+                  </button>
                   <button mat-button (click)="remove(event.eventId)">Delete</button>
                 </div>
               </div>
@@ -204,7 +210,12 @@ import { CategoryRecord, EventDetail, EventFormValue, EventStatus, EventSummary 
                     <mat-label>Quantity</mat-label>
                     <input matInput type="number" formControlName="totalQuantity" />
                   </mat-form-field>
-                  <button mat-icon-button type="button" (click)="removeTicket($index)" [disabled]="ticketTypes.length === 1">
+                  <button
+                    mat-icon-button
+                    type="button"
+                    (click)="removeTicket($index)"
+                    [disabled]="ticketTypes.length === 1"
+                  >
                     <mat-icon>delete</mat-icon>
                   </button>
                 </div>
@@ -293,7 +304,9 @@ export class EventsComponent {
       .subscribe({
         next: (event) => this.patchEvent(event),
         error: (error: { error?: { message?: string }; message?: string }) => {
-          this.snackbar.error(error.error?.message || error.message || 'Unable to load event details.');
+          this.snackbar.error(
+            error.error?.message || error.message || 'Unable to load event details.',
+          );
         },
       });
   }
@@ -349,7 +362,9 @@ export class EventsComponent {
           this.load();
         },
         error: (error: { error?: { message?: string }; message?: string }) => {
-          this.snackbar.error(error.error?.message || error.message || 'Unable to update event status.');
+          this.snackbar.error(
+            error.error?.message || error.message || 'Unable to update event status.',
+          );
         },
       });
   }
