@@ -1,59 +1,114 @@
-# EventAdminDashboard
+# Event Admin Dashboard
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.6.
+Admin and host dashboard for Event Hub. This Angular application manages events, categories, bookings, users, notification operations, and profile settings.
 
-## Development server
+## Stack
 
-To start a local development server, run:
+- Angular 21
+- Angular Material
+- Tailwind CSS
+- SSR-enabled Angular app
 
-```bash
-ng serve
+## Features
+
+- Admin login through auth service
+- Dashboard with booking, event, and notification summary cards
+- Event CRUD with multipart banner upload and ticket-tier editing
+- Event status management
+- Category create, update, and delete
+- Booking admin list and booking detail inspection
+- Booking stats
+- User directory with pagination
+- Notification logs and failed-notification retry
+- Host-password email trigger
+- Profile view and update
+- Avatar upload
+- Password reset request and reset submission
+- Token and endpoint configuration stored in browser local storage
+
+## Route Map
+
+- `/login`
+- `/dashboard`
+- `/events`
+- `/bookings`
+- `/users`
+- `/categories`
+- `/notifications`
+- `/settings`
+
+## Backend Integration
+
+The dashboard talks to live services, normally through the gateway base URL `/api`.
+
+Used backend paths include:
+
+- auth service:
+  - login
+  - refresh token
+  - get profile
+  - update profile
+  - request password reset code
+  - reset password
+  - upload avatar
+  - list users
+- event service:
+  - list admin events
+  - get event detail
+  - create event
+  - update event
+  - change event status
+  - delete event
+  - categories list and CRUD
+- booking service:
+  - booking stats
+  - admin booking list
+  - booking detail
+- notification service:
+  - stats
+  - logs
+  - failed notifications
+  - retry failed notification
+  - send host password
+
+## Access Model
+
+- Login is intended for `admin` and `host` accounts.
+- Route guarding only checks whether a token exists.
+- Notification admin endpoints are currently called without bearer auth because the notification service does not enforce auth in code.
+
+## Local Setup
+
+1. Install dependencies:
+
+```powershell
+npm install
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+2. Ensure these backend services are up:
+   - `gateway-service-api`
+   - `auth-service-api`
+   - `event-service-api`
+   - `booking-service-api`
+   - `notification-service-api`
 
-## Code scaffolding
+3. Start the app:
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
+```powershell
+npm start
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Default dev port: `4200`
 
-```bash
-ng generate --help
+The Kubernetes container runs the SSR server on port `4000`.
+
+## Production
+
+```powershell
+npm run build
 ```
 
-## Building
+For SSR runtime, the app uses:
 
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- `PORT` for the server port
+- `API_BASE_URL` for server-side API base URL
