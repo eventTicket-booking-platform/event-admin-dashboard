@@ -73,9 +73,30 @@ Used backend paths include:
 
 ## Access Model
 
-- Login is intended for `admin` and `host` accounts.
-- Route guarding only checks whether a token exists.
-- Notification admin endpoints are currently called without bearer auth because the notification service does not enforce auth in code.
+- ADMIN and HOST use this same dashboard; CUSTOMER cannot enter it.
+- Both roles see Overview, Events, Bookings and their own profile Settings.
+- Users, Categories management and Notifications are ADMIN-only in navigation
+  and child-route guards. Hosts do not request global user lists/email lookups
+  or notification statistics. Shared booking/event endpoints return only the
+  host's owned events and associated booking data; ADMIN retains platform totals.
+- UI role decoding only controls presentation. Event Service enforces ownership
+  using `Event.createdBy` and the JWT subject. Booking Service verifies event
+  ownership through Event Service before returning host booking data; frontend
+  filters are never trusted for access control. Event creation no longer submits
+  an owner, and the backend ignores one supplied by older clients.
+- Auth Service restricts global user listing/email resolution to ADMIN. The
+  auth interceptor supplies bearer tokens to notification calls; the gateway
+  requires ADMIN for notification administration and rejects public forwarding
+  of internal inventory/count APIs. Direct service ports must remain private,
+  since Notification Service and internal inventory commands still trust that
+  network boundary.
+- Deploy Event Service first and audit old client-supplied `createdBy` values.
+  Unauthenticated management uses existing authentication handling; an
+  authenticated non-owner receives 403.
+
+Run `npm test -- --watch=false` for role/guard/sidebar tests and `npm run build`
+for the production build. Backend HTTP/database tests cover authoritative
+ownership, scoped pagination/totals and customer own-booking behavior.
 
 ## Local Setup
 
