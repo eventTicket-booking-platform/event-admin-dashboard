@@ -53,6 +53,7 @@ import { BookingDetail, BookingStats, BookingSummary, EventSummary, UserSummary 
             }
           </mat-select>
         </mat-form-field>
+        @if (data.isAdmin()) {
         <mat-form-field appearance="outline">
           <mat-label>User email</mat-label>
           <mat-select formControlName="userEmail">
@@ -62,6 +63,7 @@ import { BookingDetail, BookingStats, BookingSummary, EventSummary, UserSummary 
             }
           </mat-select>
         </mat-form-field>
+        }
       </form>
     </mat-card>
 
@@ -135,7 +137,7 @@ import { BookingDetail, BookingStats, BookingSummary, EventSummary, UserSummary 
 })
 export class BookingsComponent {
   private readonly fb = inject(FormBuilder);
-  private readonly data = inject(AdminDataService);
+  readonly data = inject(AdminDataService);
   private readonly snackbar = inject(SnackbarService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -154,13 +156,13 @@ export class BookingsComponent {
   constructor() {
     this.filters.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load());
     this.loadEventOptions();
-    this.loadUserOptions();
+    if (this.data.isAdmin()) this.loadUserOptions();
     this.load();
   }
 
   load(): void {
     forkJoin({
-      stats: this.data.getBookingStats(),
+      stats: this.data.getBookingStats(this.filters.getRawValue().eventId),
       bookings: this.data.getBookings({ ...this.filters.getRawValue(), page: 0, size: 20 }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))

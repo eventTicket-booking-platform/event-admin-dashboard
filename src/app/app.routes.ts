@@ -11,6 +11,7 @@ export const routes: Routes = [
     path: '',
     component: AppShellComponent,
     canActivate: [accessGuard],
+    canActivateChild: [accessGuard],
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
       {
@@ -27,14 +28,17 @@ export const routes: Routes = [
       },
       {
         path: 'users',
+        data: { adminOnly: true },
         loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent),
       },
       {
         path: 'categories',
+        data: { adminOnly: true },
         loadComponent: () => import('./features/categories/categories.component').then((m) => m.CategoriesComponent),
       },
       {
         path: 'notifications',
+        data: { adminOnly: true },
         loadComponent: () =>
           import('./features/notifications/notifications.component').then((m) => m.NotificationsComponent),
       },

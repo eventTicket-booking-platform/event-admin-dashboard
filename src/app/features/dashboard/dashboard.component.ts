@@ -3,7 +3,7 @@ import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { forkJoin } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
 import { AdminDataService } from '../../core/services/admin-data.service';
 import { SnackbarService } from '../../core/services/snackbar.service';
 import { BookingStats, EventSummary, NotificationStats } from '../../models';
@@ -26,7 +26,9 @@ import { BookingStats, EventSummary, NotificationStats } from '../../models';
     <section class="stats-grid">
       <mat-card class="stats-card"><p>Total bookings</p><h3>{{ bookingStats()?.totalBookings ?? '-' }}</h3></mat-card>
       <mat-card class="stats-card"><p>Revenue</p><h3>{{ bookingStats()?.totalRevenue ?? 0 | currency }}</h3></mat-card>
-      <mat-card class="stats-card"><p>Notifications sent</p><h3>{{ notificationStats()?.sentCount ?? '-' }}</h3></mat-card>
+      @if (data.isAdmin()) {
+        <mat-card class="stats-card"><p>Notifications sent</p><h3>{{ notificationStats()?.sentCount ?? '-' }}</h3></mat-card>
+      }
       <mat-card class="stats-card"><p>Events loaded</p><h3>{{ recentEvents().length }}</h3></mat-card>
     </section>
 
@@ -67,6 +69,7 @@ import { BookingStats, EventSummary, NotificationStats } from '../../models';
         </dl>
       </mat-card>
 
+      @if (data.isAdmin()) {
       <mat-card class="panel">
         <div class="panel__header">
           <div>
@@ -80,6 +83,7 @@ import { BookingStats, EventSummary, NotificationStats } from '../../models';
           <dt>Unread</dt><dd>{{ notificationStats()?.unreadCount ?? '-' }}</dd>
         </dl>
       </mat-card>
+      }
     </section>
   `,
 })
@@ -99,7 +103,7 @@ export class DashboardComponent {
   load(): void {
     forkJoin({
       bookingStats: this.data.getBookingStats(),
-      notificationStats: this.data.getNotificationStats(),
+      notificationStats: this.data.isAdmin() ? this.data.getNotificationStats() : of(null),
       events: this.data.getEvents({ page: 0, size: 5 }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))

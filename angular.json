@@ -38,6 +38,7 @@
           },
           "configurations": {
             "production": {
+              "baseHref": "/admin/",
               "budgets": [
                 {
                   "type": "initial",
@@ -62,6 +63,9 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "proxyConfig": "proxy.conf.json"
+          },
           "configurations": {
             "production": {
               "buildTarget": "event-admin-dashboard:build:production"

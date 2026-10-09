@@ -98,9 +98,12 @@ npm install
 npm start
 ```
 
-Default dev port: `4200`
+Default dev port: `4200`. Open `http://localhost:4200/login`.
+
+During local development, `/api/*` requests are proxied to `http://localhost:9090` by `proxy.conf.json`, so the gateway must be running locally on port `9090`.
 
 The Kubernetes container runs the SSR server on port `4000`.
+Use `/health` for container or ingress health checks.
 
 ## Production
 
@@ -111,4 +114,4 @@ npm run build
 For SSR runtime, the app uses:
 
 - `PORT` for the server port
-- `API_BASE_URL` for server-side API base URL
+- `API_BASE_URL` or `GATEWAY_API_BASE_URL` for the gateway base URL. The container default is `http://gateway-service:9090/api`.

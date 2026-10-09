@@ -57,7 +57,7 @@ export class LoginComponent {
   });
 
   constructor() {
-    if (this.data.hasToken()) {
+    if (this.data.hasToken() && this.data.canManage()) {
       void this.router.navigateByUrl('/');
     }
   }
@@ -81,6 +81,12 @@ export class LoginComponent {
           }
 
           this.data.setAuthSession(response);
+          if (!this.data.canManage()) {
+            this.data.logout();
+            this.snackbar.error('An admin or host account is required for this dashboard.');
+            this.loading.set(false);
+            return;
+          }
           this.snackbar.success('Logged in successfully.');
           this.loading.set(false);
           void this.router.navigateByUrl('/');

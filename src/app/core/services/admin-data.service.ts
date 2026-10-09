@@ -34,6 +34,9 @@ export class AdminDataService {
 
   readonly config = this.configSignal.asReadonly();
   readonly hasToken = computed(() => Boolean(this.configSignal().authToken.trim()));
+  readonly role = computed(() => dashboardRole(this.configSignal().authToken));
+  readonly isAdmin = computed(() => this.role() === 'ADMIN');
+  readonly canManage = computed(() => this.isAdmin() || this.role() === 'HOST');
 
   login(request: LoginRequest): Observable<LoginResponse> {
     return this.http
@@ -201,9 +204,10 @@ export class AdminDataService {
     });
   }
 
-  getBookingStats(): Observable<BookingStats> {
+  getBookingStats(eventId?: string): Observable<BookingStats> {
     return this.http.get<BookingStats>(`${this.config().bookingBaseUrl}/booking-service/api/v1/admin/stats`, {
       headers: this.authHeaders(),
+      params: eventId ? new HttpParams().set('eventId', eventId) : new HttpParams(),
     });
   }
 
@@ -353,7 +357,6 @@ export class AdminDataService {
 
     if (includeStatus) {
       payload['status'] = form.status;
-      payload['createdBy'] = this.resolveCurrentUserId();
     }
 
     const formData = new FormData();
@@ -366,20 +369,6 @@ export class AdminDataService {
 
   private toIsoDateTime(value: string): string {
     return value ? new Date(value).toISOString() : value;
-  }
-
-  private resolveCurrentUserId(): string {
-    const token = this.getToken();
-    if (!token) {
-      return 'unknown';
-    }
-
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1] ?? ''));
-      return (payload?.sub as string) || 'unknown';
-    } catch {
-      return 'unknown';
-    }
   }
 
   private loadConfig(): ApiConfig {
@@ -415,5 +404,21 @@ export class AdminDataService {
     }
 
     return process.env['API_BASE_URL'] || '/api';
+  }
+}
+
+// Used only for dashboard presentation. APIs validate the signed JWT themselves.
+export function dashboardRole(token: string): 'ADMIN' | 'HOST' | 'CUSTOMER' | null {
+  try {
+    const payload = JSON.parse(atob((token.split('.')[1] ?? '').replace(/-/g, '+').replace(/_/g, '/')));
+    const roles: unknown = payload?.realm_access?.roles;
+    if (!Array.isArray(roles)) return null;
+    const normalized = roles.filter((role): role is string => typeof role === 'string')
+      .map((role) => role.toUpperCase());
+    if (normalized.includes('ADMIN')) return 'ADMIN';
+    if (normalized.includes('HOST')) return 'HOST';
+    return normalized.includes('CUSTOMER') || normalized.includes('USER') ? 'CUSTOMER' : null;
+  } catch {
+    return null;
   }
 }

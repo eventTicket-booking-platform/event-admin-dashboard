@@ -1,4 +1,5 @@
-import { Component, EventEmitter, Output } from '@angular/core';
+import { Component, EventEmitter, Output, computed, inject } from '@angular/core';
+import { AdminDataService } from '../core/services/admin-data.service';
 import { MatIconModule } from '@angular/material/icon';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 
@@ -44,7 +45,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
       </div>
 
       <nav class="nav-section" aria-label="Primary">
-        @for (item of items; track item.path) {
+        @for (item of items(); track item.path) {
           <a class="nav-link" [routerLink]="item.path" routerLinkActive="nav-link--active" (click)="navigate.emit()">
             <mat-icon>{{ item.icon }}</mat-icon>
             <span>{{ item.label }}</span>
@@ -57,13 +58,14 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 export class SidebarComponent {
   @Output() readonly navigate = new EventEmitter<void>();
 
-  readonly items = [
+  readonly data = inject(AdminDataService);
+  readonly items = computed(() => [
     { path: '/dashboard', label: 'Overview', icon: 'dashboard' },
     { path: '/events', label: 'Events', icon: 'event' },
     { path: '/bookings', label: 'Bookings', icon: 'confirmation_number' },
-    { path: '/users', label: 'Users', icon: 'group' },
-    { path: '/categories', label: 'Categories', icon: 'category' },
-    { path: '/notifications', label: 'Notifications', icon: 'notifications' },
+    { path: '/users', label: 'Users', icon: 'group', adminOnly: true },
+    { path: '/categories', label: 'Categories', icon: 'category', adminOnly: true },
+    { path: '/notifications', label: 'Notifications', icon: 'notifications', adminOnly: true },
     { path: '/settings', label: 'Settings', icon: 'settings' },
-  ];
+  ].filter((item) => !item.adminOnly || this.data.isAdmin()));
 }
