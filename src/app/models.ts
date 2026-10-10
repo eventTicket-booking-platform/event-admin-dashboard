@@ -43,7 +43,7 @@ export interface CategoryRecord {
   active: boolean;
 }
 
-export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELLED';
+export type EventStatus = 'DRAFT' | 'PUBLISHED' | 'CANCELLED' | 'COMPLETED';
 
 export interface EventSummary {
   eventId: number;
@@ -88,7 +88,7 @@ export interface PaginatedEvents {
   dataCount: number;
 }
 
-export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'FAILED';
+export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED';
 
 export interface BookingSummary {
   bookingId: number;
@@ -105,7 +105,7 @@ export interface BookingStats {
   totalBookings: number;
   confirmedBookings: number;
   cancelledBookings: number;
-  failedBookings: number;
+  pendingBookings: number;
   totalRevenue: number;
 }
 
@@ -113,7 +113,7 @@ export interface BookingItem {
   ticketTypeId?: number;
   ticketTypeName?: string;
   quantity: number;
-  price: number;
+  unitPrice: number;
   subtotal?: number;
 }
 

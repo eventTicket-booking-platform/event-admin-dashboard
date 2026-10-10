@@ -52,6 +52,7 @@ import { CategoryRecord, EventDetail, EventFormValue, EventStatus, EventSummary 
             <mat-option value="DRAFT">DRAFT</mat-option>
             <mat-option value="PUBLISHED">PUBLISHED</mat-option>
             <mat-option value="CANCELLED">CANCELLED</mat-option>
+            <mat-option value="COMPLETED">COMPLETED</mat-option>
           </mat-select>
         </mat-form-field>
         <div class="inline-actions">
@@ -82,14 +83,23 @@ import { CategoryRecord, EventDetail, EventFormValue, EventStatus, EventSummary 
                   event.status
                 }}</span>
                 <div class="inline-actions">
-                  <button mat-button (click)="inspect(event.eventId)">Edit</button>
+                  @if (event.status !== 'COMPLETED') {
+                    <button mat-button (click)="inspect(event.eventId)">Edit</button>
+                  }
+                  @if (event.status === 'DRAFT' || event.status === 'CANCELLED') {
                   <button mat-button (click)="changeStatus(event.eventId, 'PUBLISHED')">
                     Publish
                   </button>
+                  }
+                  @if (event.status === 'DRAFT' || event.status === 'PUBLISHED') {
                   <button mat-button (click)="changeStatus(event.eventId, 'CANCELLED')">
                     Cancel
                   </button>
                   <button mat-button (click)="remove(event.eventId)">Delete</button>
+                  }
+                  @if (event.status === 'PUBLISHED') {
+                    <button mat-button (click)="changeStatus(event.eventId, 'COMPLETED')">Complete</button>
+                  }
                 </div>
               </div>
             </div>
@@ -128,6 +138,7 @@ import { CategoryRecord, EventDetail, EventFormValue, EventStatus, EventSummary 
               </mat-select>
             </mat-form-field>
 
+            @if (!editingEventId()) {
             <mat-form-field appearance="outline">
               <mat-label>Status</mat-label>
               <mat-select formControlName="status">
@@ -136,6 +147,9 @@ import { CategoryRecord, EventDetail, EventFormValue, EventStatus, EventSummary 
                 <mat-option value="CANCELLED">CANCELLED</mat-option>
               </mat-select>
             </mat-form-field>
+            } @else {
+              <p>Status: {{ eventForm.controls.status.value }}. Use the event list to change status.</p>
+            }
 
             <mat-form-field appearance="outline">
               <mat-label>Start date</mat-label>
@@ -352,7 +366,7 @@ export class EventsComponent {
     });
   }
 
-  changeStatus(eventId: number, status: 'PUBLISHED' | 'CANCELLED'): void {
+  changeStatus(eventId: number, status: EventStatus): void {
     this.data
       .updateEventStatus(eventId, status)
       .pipe(takeUntilDestroyed(this.destroyRef))

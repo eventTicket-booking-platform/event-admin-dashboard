@@ -65,7 +65,7 @@ import { BookingStats, EventSummary, NotificationStats } from '../../models';
         <dl class="detail-grid">
           <dt>Confirmed</dt><dd>{{ bookingStats()?.confirmedBookings ?? '-' }}</dd>
           <dt>Cancelled</dt><dd>{{ bookingStats()?.cancelledBookings ?? '-' }}</dd>
-          <dt>Failed</dt><dd>{{ bookingStats()?.failedBookings ?? '-' }}</dd>
+          <dt>Pending</dt><dd>{{ bookingStats()?.pendingBookings ?? '-' }}</dd>
         </dl>
       </mat-card>
 

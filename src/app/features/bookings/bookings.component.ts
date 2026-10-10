@@ -42,6 +42,7 @@ import { BookingDetail, BookingStats, BookingSummary, EventSummary, UserSummary 
             <mat-option value="PENDING">PENDING</mat-option>
             <mat-option value="CONFIRMED">CONFIRMED</mat-option>
             <mat-option value="CANCELLED">CANCELLED</mat-option>
+            <mat-option value="EXPIRED">EXPIRED</mat-option>
           </mat-select>
         </mat-form-field>
         <mat-form-field appearance="outline">
@@ -121,7 +122,7 @@ import { BookingDetail, BookingStats, BookingSummary, EventSummary, UserSummary 
                     <strong>{{ item.ticketTypeName || 'Ticket' }}</strong>
                     <p>Qty {{ item.quantity }}</p>
                   </div>
-                  <span>{{ item.price | currency }}</span>
+                  <span>{{ item.unitPrice | currency }}</span>
                 </div>
               } @empty {
                 <p class="muted-copy">No line items returned.</p>

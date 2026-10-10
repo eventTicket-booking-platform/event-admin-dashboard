@@ -349,6 +349,7 @@ body {
 }
 
 .status-badge--published,
+.status-badge--completed,
 .status-badge--confirmed,
 .status-badge--sent {
   color: var(--ok);
@@ -362,6 +363,7 @@ body {
 }
 
 .status-badge--cancelled,
+.status-badge--expired,
 .status-badge--failed {
   color: var(--warn);
   background: var(--warn-soft);
