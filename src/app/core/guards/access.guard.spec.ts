@@ -21,7 +21,7 @@ describe('shared dashboard access', () => {
 
   function access(adminOnly = false) {
     return TestBed.runInInjectionContext(() => accessGuard(
-      { data: { adminOnly } } as ActivatedRouteSnapshot, {} as RouterStateSnapshot));
+      { data: { adminOnly } } as unknown as ActivatedRouteSnapshot, {} as RouterStateSnapshot));
   }
 
   it('keeps admins and hosts in the same dashboard', () => {
