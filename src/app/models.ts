@@ -64,6 +64,7 @@ export interface VenueRecord {
 
 export interface TicketTypeRecord {
   id?: number;
+  ticketTypeId?: number;
   name: string;
   price: number;
   totalQuantity: number;

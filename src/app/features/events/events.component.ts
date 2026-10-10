@@ -440,7 +440,7 @@ export class EventsComponent {
       this.fb.array(
         event.ticketTypes.map((ticket) =>
           this.fb.nonNullable.group({
-            id: [ticket.id ?? null],
+            id: [ticket.ticketTypeId ?? ticket.id ?? null],
             name: [ticket.name, Validators.required],
             price: [ticket.price, Validators.required],
             totalQuantity: [ticket.totalQuantity, Validators.required],
