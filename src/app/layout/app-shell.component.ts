@@ -54,6 +54,7 @@ export class AppShellComponent {
       events: 'Events',
       bookings: 'Bookings',
       users: 'Users',
+      'host-applications': 'Host Applications',
       categories: 'Categories',
       notifications: 'Notifications',
       settings: 'Settings',

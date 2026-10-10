@@ -19,6 +19,7 @@ Admin and host dashboard for Event Hub. This Angular application manages events,
 - Booking admin list and booking detail inspection
 - Booking stats
 - User directory with pagination
+- ADMIN-only host application review with status filtering and pagination
 - Notification logs and failed-notification retry
 - Host-password email trigger
 - Profile view and update
@@ -33,6 +34,7 @@ Admin and host dashboard for Event Hub. This Angular application manages events,
 - `/events`
 - `/bookings`
 - `/users`
+- `/host-applications` (ADMIN only)
 - `/categories`
 - `/notifications`
 - `/settings`
@@ -52,6 +54,7 @@ Used backend paths include:
   - reset password
   - upload avatar
   - list users
+  - list, approve and reject host applications
 - event service:
   - list admin events
   - get event detail
@@ -75,7 +78,7 @@ Used backend paths include:
 
 - ADMIN and HOST use this same dashboard; CUSTOMER cannot enter it.
 - Both roles see Overview, Events, Bookings and their own profile Settings.
-- Users, Categories management and Notifications are ADMIN-only in navigation
+- Users, Host Applications, Categories management and Notifications are ADMIN-only in navigation
   and child-route guards. Hosts do not request global user lists/email lookups
   or notification statistics. Shared booking/event endpoints return only the
   host's owned events and associated booking data; ADMIN retains platform totals.
@@ -97,6 +100,24 @@ Used backend paths include:
 Run `npm test -- --watch=false` for role/guard/sidebar tests and `npm run build`
 for the production build. Backend HTTP/database tests cover authoritative
 ownership, scoped pagination/totals and customer own-booking behavior.
+
+## Host Application Review (Phase 4)
+
+Open **Host Applications** as ADMIN. The list defaults to PENDING and supports
+APPROVED/REJECTED filters with the existing Previous/Next pagination pattern.
+Each row shows applicant details, organization, reason, status and review dates.
+Only pending applications have actions. Approve opens an inline confirmation;
+Reject requires a nonblank reason of at most 2,000 characters. Controls are
+disabled during review requests, and status changes appear only after backend
+success. The list then refreshes; rejection reasons remain visible in the result
+notice and rejected rows. Conflicts reload stale data; failures show snackbar
+feedback and allow retry without claiming success.
+
+The feature uses the existing configured auth base URL and bearer-token/refresh
+interceptor for `/user-service/api/v1/host-applications/admin` and its
+`/{id}/approve` and `/{id}/reject` PATCH endpoints. HOST cannot see its navigation
+or enter its guarded route. Backend ADMIN authorization remains authoritative.
+No Keycloak calls or notification behavior are added to the dashboard.
 
 ## Local Setup
 

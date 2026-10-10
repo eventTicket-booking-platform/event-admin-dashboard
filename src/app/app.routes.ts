@@ -27,6 +27,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/bookings/bookings.component').then((m) => m.BookingsComponent),
       },
       {
+        path: 'host-applications',
+        data: { adminOnly: true },
+        loadComponent: () => import('./features/host-applications/host-applications.component').then((m) => m.HostApplicationsComponent),
+      },
+      {
         path: 'users',
         data: { adminOnly: true },
         loadComponent: () => import('./features/users/users.component').then((m) => m.UsersComponent),

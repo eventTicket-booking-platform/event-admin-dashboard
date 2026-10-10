@@ -19,12 +19,14 @@ describe('role-aware shared sidebar', () => {
     expect(text).toContain('Events');
     expect(text).toContain('Bookings');
     expect(text).not.toContain('Users');
+    expect(text).not.toContain('Host Applications');
     expect(text).not.toContain('Categories');
     expect(text).not.toContain('Notifications');
     auth.setToken(`h.${btoa(JSON.stringify({ realm_access: { roles: ['ADMIN'] } }))}.s`);
     fixture.detectChanges();
     text = fixture.nativeElement.textContent;
     expect(text).toContain('Users');
+    expect(text).toContain('Host Applications');
     expect(text).toContain('Categories');
     expect(text).toContain('Notifications');
   });

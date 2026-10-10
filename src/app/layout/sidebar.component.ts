@@ -64,6 +64,7 @@ export class SidebarComponent {
     { path: '/events', label: 'Events', icon: 'event' },
     { path: '/bookings', label: 'Bookings', icon: 'confirmation_number' },
     { path: '/users', label: 'Users', icon: 'group', adminOnly: true },
+    { path: '/host-applications', label: 'Host Applications', icon: 'person_add', adminOnly: true },
     { path: '/categories', label: 'Categories', icon: 'category', adminOnly: true },
     { path: '/notifications', label: 'Notifications', icon: 'notifications', adminOnly: true },
     { path: '/settings', label: 'Settings', icon: 'settings' },

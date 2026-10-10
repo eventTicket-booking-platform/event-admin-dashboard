@@ -1,0 +1,113 @@
+<section class="page-actions">
+  <mat-form-field appearance="outline">
+    <mat-label>Application status</mat-label>
+    <mat-select [value]="status()" (selectionChange)="changeStatus($event.value)" [disabled]="loading() || reviewing()">
+      @for (option of statuses; track option) {
+        <mat-option [value]="option">{{ option }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+  <button mat-flat-button type="button" (click)="load()" [disabled]="loading() || reviewing()">Refresh</button>
+</section>
+
+@if (lastReviewed(); as application) {
+  <mat-card class="panel review-result" role="status">
+    <p>{{ application.organizationName }}: {{ application.status }}</p>
+    @if (application.rejectionReason) {
+      <p class="application-copy">Rejection reason: {{ application.rejectionReason }}</p>
+    }
+  </mat-card>
+}
+
+<mat-card class="panel">
+  <div class="panel__header">
+    <div>
+      <h3>Host Applications</h3>
+      <p>{{ totalCount() }} {{ status().toLowerCase() }} applications</p>
+    </div>
+  </div>
+  @if (loading()) {
+    <p class="muted-copy" role="status">Loading host applications...</p>
+  } @else if (loadError()) {
+    <p role="alert">{{ loadError() }}</p>
+  } @else if (applications().length === 0) {
+    <p class="muted-copy">No {{ status().toLowerCase() }} applications found.</p>
+  } @else {
+    <div class="applications-table-wrap">
+      <table class="applications-table" aria-label="Host applications">
+        <thead>
+          <tr>
+            <th scope="col">Applicant</th><th scope="col">Email</th><th scope="col">Organization</th>
+            <th scope="col">Reason</th><th scope="col">Status</th><th scope="col">Applied</th>
+            <th scope="col">Reviewed</th><th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (application of applications(); track application.applicationId) {
+            <tr class="application-row">
+              <td>{{ application.firstName }} {{ application.lastName }}</td>
+              <td>{{ application.email }}</td>
+              <td>{{ application.organizationName }}</td>
+              <td class="application-copy">{{ application.reason || '—' }}</td>
+              <td>
+                <span class="status-badge" [class.status-badge--pending]="application.status === 'PENDING'"
+                  [class.status-badge--confirmed]="application.status === 'APPROVED'"
+                  [class.status-badge--failed]="application.status === 'REJECTED'">{{ application.status }}</span>
+                @if (application.rejectionReason) {
+                  <p class="application-copy">Rejection reason: {{ application.rejectionReason }}</p>
+                }
+              </td>
+              <td>{{ application.appliedAt | date: 'medium' }}</td>
+              <td>{{ application.reviewedAt ? (application.reviewedAt | date: 'medium') : '—' }}</td>
+              <td>
+                @if (application.status === 'PENDING') {
+                  <div class="review-actions">
+                    <button mat-stroked-button type="button" (click)="openReview(application, 'approve')"
+                      [disabled]="reviewing()" [attr.aria-label]="'Approve application for ' + application.email">Approve</button>
+                    <button mat-stroked-button type="button" (click)="openReview(application, 'reject')"
+                      [disabled]="reviewing()" [attr.aria-label]="'Reject application for ' + application.email">Reject</button>
+                  </div>
+                } @else { <span>—</span> }
+              </td>
+            </tr>
+            @if (review(); as current) {
+              @if (current.application.applicationId === application.applicationId) {
+                <tr>
+                  <td colspan="8">
+                    <form class="review-form" (submit)="$event.preventDefault(); confirmReview()" aria-label="Confirm host application review" [attr.aria-busy]="reviewing()">
+                      <p>Confirm {{ current.action === 'approve' ? 'approval' : 'rejection' }} for {{ application.firstName }} {{ application.lastName }} ({{ application.email }})?</p>
+                      @if (current.action === 'approve') {
+                        <p class="muted-copy">Approval grants this account HOST access.</p>
+                      } @else {
+                        <mat-form-field appearance="outline">
+                          <mat-label>Rejection reason</mat-label>
+                          <textarea matInput [formControl]="rejectionReason" rows="3" maxlength="2000" [readonly]="reviewing()"></textarea>
+                          @if (rejectionReason.invalid && rejectionReason.touched) {
+                            <mat-error>Enter a reason of 1–2,000 characters.</mat-error>
+                          }
+                        </mat-form-field>
+                      }
+                      <div class="review-actions">
+                        <button mat-flat-button type="submit" [disabled]="reviewing() || (current.action === 'reject' && rejectionReason.invalid)">
+                          {{ reviewing() ? 'Saving...' : current.action === 'approve' ? 'Confirm Approval' : 'Confirm Rejection' }}
+                        </button>
+                        <button mat-stroked-button type="button" (click)="cancelReview()" [disabled]="reviewing()">Cancel</button>
+                      </div>
+                    </form>
+                  </td>
+                </tr>
+              }
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <p>Showing {{ rangeStart() }} - {{ rangeEnd() }} of {{ totalCount() }}</p>
+      <div class="review-actions">
+        <button mat-stroked-button type="button" (click)="previousPage()" [disabled]="pageIndex() === 0 || loading() || reviewing()">Previous</button>
+        <button mat-stroked-button type="button" (click)="nextPage()" [disabled]="!hasNextPage() || loading() || reviewing()">Next</button>
+      </div>
+    </div>
+  }
+</mat-card>
