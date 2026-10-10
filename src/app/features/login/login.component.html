@@ -1,0 +1,27 @@
+<section class="auth-page">
+  <mat-card class="auth-card">
+    <div class="auth-card__header">
+      <p class="page-head__eyebrow">Event Hub</p>
+      <h1>Admin Login</h1>
+      <p class="page-head__copy">Sign in with an admin or host account through the gateway auth endpoint.</p>
+    </div>
+
+    <form [formGroup]="loginForm" class="form-stack" (ngSubmit)="login()">
+      <mat-form-field appearance="outline">
+        <mat-label>Email</mat-label>
+        <input matInput formControlName="email" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Password</mat-label>
+        <input matInput type="password" formControlName="password" />
+      </mat-form-field>
+
+      <div class="auth-actions">
+        <button mat-flat-button type="submit" [disabled]="loginForm.invalid || loading()">
+          {{ loading() ? 'Signing in...' : 'Login' }}
+        </button>
+      </div>
+    </form>
+  </mat-card>
+</section>

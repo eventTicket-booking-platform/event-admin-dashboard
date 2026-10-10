@@ -7,9 +7,14 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { forkJoin } from 'rxjs';
-import { AdminDataService } from '../../core/services/admin-data.service';
+import { EventsApiService } from '../events/events-api.service';
+import { BookingsApiService } from './bookings-api.service';
+import { UsersApiService } from '../users/users-api.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { SnackbarService } from '../../core/services/snackbar.service';
-import { BookingDetail, BookingStats, BookingSummary, EventSummary, UserSummary } from '../../models';
+import { BookingDetail, BookingStats, BookingSummary } from './bookings.models';
+import { EventSummary } from '../events/events.models';
+import { UserSummary } from '../users/users.models';
 
 @Component({
   selector: 'app-bookings',
@@ -22,123 +27,14 @@ import { BookingDetail, BookingStats, BookingSummary, EventSummary, UserSummary 
     MatSelectModule,
     ReactiveFormsModule,
   ],
-  template: `
-    <section class="page-actions">
-      <button mat-flat-button (click)="load()">Refresh</button>
-    </section>
-
-    <section class="stats-grid stats-grid--compact">
-      <mat-card class="stats-card"><p>Total</p><h3>{{ stats()?.totalBookings ?? '-' }}</h3></mat-card>
-      <mat-card class="stats-card"><p>Confirmed</p><h3>{{ stats()?.confirmedBookings ?? '-' }}</h3></mat-card>
-      <mat-card class="stats-card"><p>Cancelled</p><h3>{{ stats()?.cancelledBookings ?? '-' }}</h3></mat-card>
-    </section>
-
-    <mat-card class="panel">
-      <form [formGroup]="filters" class="filters-grid filters-grid--three">
-        <mat-form-field appearance="outline">
-          <mat-label>Status</mat-label>
-          <mat-select formControlName="status">
-            <mat-option value="">All</mat-option>
-            <mat-option value="PENDING">PENDING</mat-option>
-            <mat-option value="CONFIRMED">CONFIRMED</mat-option>
-            <mat-option value="CANCELLED">CANCELLED</mat-option>
-            <mat-option value="EXPIRED">EXPIRED</mat-option>
-          </mat-select>
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Event</mat-label>
-          <mat-select formControlName="eventId">
-            <mat-option value="">All events</mat-option>
-            @for (event of eventOptions(); track event.eventId) {
-              <mat-option [value]="event.eventId.toString()">{{ event.title }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-        @if (data.isAdmin()) {
-        <mat-form-field appearance="outline">
-          <mat-label>User email</mat-label>
-          <mat-select formControlName="userEmail">
-            <mat-option value="">All users</mat-option>
-            @for (user of userOptions(); track user.email) {
-              <mat-option [value]="user.email">{{ user.email }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-        }
-      </form>
-    </mat-card>
-
-    <section class="content-grid">
-      <mat-card class="panel">
-        <div class="panel__header">
-          <div>
-            <h3>Booking list</h3>
-            <p>{{ bookings().length }} records from the admin booking list endpoint.</p>
-          </div>
-        </div>
-        <div class="data-list">
-          @for (booking of bookings(); track booking.bookingId) {
-            <button class="data-row data-row--button" type="button" (click)="loadDetail(booking.bookingId)">
-              <div class="data-row__main">
-                <strong>{{ booking.bookingReference }}</strong>
-                <p>{{ booking.eventTitle }}</p>
-                <span>{{ booking.bookingDate | date: 'medium' }}</span>
-              </div>
-              <div class="data-row__side">
-                <span class="status-badge status-badge--{{ booking.status.toLowerCase() }}">{{ booking.status }}</span>
-                <strong>{{ booking.totalAmount | currency }}</strong>
-              </div>
-            </button>
-          } @empty {
-            <p class="muted-copy">No bookings found.</p>
-          }
-        </div>
-      </mat-card>
-
-      <mat-card class="panel">
-        <div class="panel__header">
-          <div>
-            <h3>Booking detail</h3>
-            <p>Loaded from the booking detail endpoint.</p>
-          </div>
-        </div>
-
-        @if (detail(); as booking) {
-          <dl class="detail-grid">
-            <dt>Reference</dt><dd>{{ booking.bookingReference }}</dd>
-            <dt>User</dt><dd>{{ resolveUserEmail(booking.userId) }}</dd>
-            <dt>Event</dt><dd>{{ booking.eventTitle }}</dd>
-            <dt>Status</dt><dd>{{ booking.status }}</dd>
-            <dt>Total</dt><dd>{{ booking.totalAmount | currency }}</dd>
-            <dt>Booked</dt><dd>{{ booking.bookingDate | date: 'medium' }}</dd>
-          </dl>
-
-          <div class="ticket-box">
-            <h3>Items</h3>
-            <div class="simple-list">
-              @for (item of booking.items; track $index) {
-                <div class="simple-list__item">
-                  <div>
-                    <strong>{{ item.ticketTypeName || 'Ticket' }}</strong>
-                    <p>Qty {{ item.quantity }}</p>
-                  </div>
-                  <span>{{ item.unitPrice | currency }}</span>
-                </div>
-              } @empty {
-                <p class="muted-copy">No line items returned.</p>
-              }
-            </div>
-          </div>
-        } @else {
-          <p class="muted-copy">Select a booking to inspect details.</p>
-        }
-      </mat-card>
-    </section>
-  `,
+  templateUrl: './bookings.component.html',
 })
 export class BookingsComponent {
   private readonly fb = inject(FormBuilder);
-  readonly data = inject(AdminDataService);
+  private readonly eventsApi = inject(EventsApiService);
+  private readonly bookingsApi = inject(BookingsApiService);
+  private readonly usersApi = inject(UsersApiService);
+  readonly auth = inject(AuthService);
   private readonly snackbar = inject(SnackbarService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -157,14 +53,14 @@ export class BookingsComponent {
   constructor() {
     this.filters.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load());
     this.loadEventOptions();
-    if (this.data.isAdmin()) this.loadUserOptions();
+    if (this.auth.isAdmin()) this.loadUserOptions();
     this.load();
   }
 
   load(): void {
     forkJoin({
-      stats: this.data.getBookingStats(this.filters.getRawValue().eventId),
-      bookings: this.data.getBookings({ ...this.filters.getRawValue(), page: 0, size: 20 }),
+      stats: this.bookingsApi.getBookingStats(this.filters.getRawValue().eventId),
+      bookings: this.bookingsApi.getBookings({ ...this.filters.getRawValue(), page: 0, size: 20 }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -180,7 +76,7 @@ export class BookingsComponent {
   }
 
   private loadEventOptions(): void {
-    this.data
+    this.eventsApi
       .getEvents({ page: 0, size: 200 })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -190,7 +86,7 @@ export class BookingsComponent {
   }
 
   private loadUserOptions(): void {
-    this.data
+    this.usersApi
       .getUsers({ page: 0, size: 200 })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -200,7 +96,7 @@ export class BookingsComponent {
   }
 
   loadDetail(bookingId: number): void {
-    this.data
+    this.bookingsApi
       .getBooking(bookingId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

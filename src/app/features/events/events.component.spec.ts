@@ -1,8 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
-import { AdminDataService } from '../../core/services/admin-data.service';
+import { CategoriesApiService } from '../categories/categories-api.service';
+import { EventsApiService } from './events-api.service';
 import { SnackbarService } from '../../core/services/snackbar.service';
-import { EventDetail, EventFormValue, EventStatus, EventSummary } from '../../models';
+import { EventDetail, EventFormValue, EventStatus, EventSummary } from './events.models';
 import { EventsComponent } from './events.component';
 
 describe('event ticket tier edit contract', () => {
@@ -15,8 +16,8 @@ describe('event ticket tier edit contract', () => {
     const changes: Array<{ id: number; status: string }> = [];
     let filterStatus: string | undefined;
     TestBed.configureTestingModule({ providers: [
-      { provide: AdminDataService, useValue: {
-        getCategories: () => of([]),
+      { provide: CategoriesApiService, useValue: { getCategories: () => of([]) } },
+      { provide: EventsApiService, useValue: {
         getEvents: (filter: { status?: string }) => {
           filterStatus = filter.status;
           return of({ dataList: events, dataCount: events.length });
@@ -54,7 +55,7 @@ describe('event ticket tier edit contract', () => {
     };
     let submitted: EventFormValue | undefined;
     const data = {
-      getCategories: () => of([]), getEvents: () => of({ dataList: [], dataCount: 0 }),
+      getEvents: () => of({ dataList: [], dataCount: 0 }),
       getEvent: () => of(event),
       updateEvent: (_id: number, form: EventFormValue) => {
         submitted = form;
@@ -62,7 +63,8 @@ describe('event ticket tier edit contract', () => {
       },
     };
     TestBed.configureTestingModule({ providers: [
-      { provide: AdminDataService, useValue: data },
+      { provide: CategoriesApiService, useValue: { getCategories: () => of([]) } },
+      { provide: EventsApiService, useValue: data },
       { provide: SnackbarService, useValue: { success: () => {}, warning: () => {}, error: () => {} } },
     ] });
     const fixture = TestBed.createComponent(EventsComponent);

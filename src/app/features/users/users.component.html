@@ -1,0 +1,66 @@
+<section class="page-actions">
+  <button mat-flat-button (click)="load()">Refresh</button>
+</section>
+
+<mat-card class="panel">
+  <div class="panel__header">
+    <div>
+      <h3>User list</h3>
+      <p>{{ totalCount() }} total users</p>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <p class="muted-copy">Loading users...</p>
+  } @else if (users().length === 0) {
+    <p class="muted-copy">No users found.</p>
+  } @else {
+    <div class="users-table-wrap">
+      <table class="users-table">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (user of users(); track user.email) {
+            <tr>
+              <td>
+                <div class="user-cell">
+                  @if (user.resourceUrl) {
+                    <img [src]="user.resourceUrl" [alt]="user.firstName + ' ' + user.lastName" class="avatar" />
+                  } @else {
+                    <div class="avatar"></div>
+                  }
+                  <span>{{ user.firstName }} {{ user.lastName }}</span>
+                </div>
+              </td>
+              <td>{{ user.email }}</td>
+              <td>
+                <span class="role-pill" [class.role-pill--admin]="user.role === 'ADMIN'" [class.role-pill--host]="user.role === 'HOST'">
+                  {{ user.role || 'UNKNOWN' }}
+                </span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      <p class="pagination__meta">
+        Showing {{ rangeStart() }} - {{ rangeEnd() }} of {{ totalCount() }}
+      </p>
+      <div class="pagination__actions">
+        <button mat-stroked-button class="pager-btn" type="button" (click)="previousPage()" [disabled]="pageIndex() === 0 || loading()">
+          Previous
+        </button>
+        <button mat-stroked-button class="pager-btn" type="button" (click)="nextPage()" [disabled]="!hasNextPage() || loading()">
+          Next
+        </button>
+      </div>
+    </div>
+  }
+</mat-card>

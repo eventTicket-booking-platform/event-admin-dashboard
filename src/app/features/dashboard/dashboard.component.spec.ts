@@ -1,8 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
-import { AdminDataService } from '../../core/services/admin-data.service';
+import { AuthService } from '../../core/auth/auth.service';
+import { BookingsApiService } from '../bookings/bookings-api.service';
+import { EventsApiService } from '../events/events-api.service';
+import { NotificationsApiService } from '../notifications/notifications-api.service';
 import { SnackbarService } from '../../core/services/snackbar.service';
-import { BookingStats } from '../../models';
+import { BookingStats } from '../bookings/bookings.models';
 import { DashboardComponent } from './dashboard.component';
 
 describe('dashboard booking stats contract', () => {
@@ -11,10 +14,10 @@ describe('dashboard booking stats contract', () => {
       totalBookings: 9, confirmedBookings: 3, cancelledBookings: 2, pendingBookings: 4, totalRevenue: 30,
     };
     TestBed.configureTestingModule({ providers: [
-      { provide: AdminDataService, useValue: {
-        hasToken: () => true, isAdmin: () => false,
-        getBookingStats: () => of(stats), getEvents: () => of({ dataList: [], dataCount: 0 }),
-      } },
+      { provide: AuthService, useValue: { hasToken: () => true, isAdmin: () => false } },
+      { provide: BookingsApiService, useValue: { getBookingStats: () => of(stats) } },
+      { provide: EventsApiService, useValue: { getEvents: () => of({ dataList: [], dataCount: 0 }) } },
+      { provide: NotificationsApiService, useValue: {} },
       { provide: SnackbarService, useValue: { error: () => {} } },
     ] });
     const fixture = TestBed.createComponent(DashboardComponent);

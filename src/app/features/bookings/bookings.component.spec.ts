@@ -1,8 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
-import { AdminDataService } from '../../core/services/admin-data.service';
+import { AuthService } from '../../core/auth/auth.service';
+import { EventsApiService } from '../events/events-api.service';
+import { UsersApiService } from '../users/users-api.service';
+import { BookingsApiService } from './bookings-api.service';
 import { SnackbarService } from '../../core/services/snackbar.service';
-import { BookingDetail } from '../../models';
+import { BookingDetail } from './bookings.models';
 import { BookingsComponent } from './bookings.component';
 
 describe('booking detail contract', () => {
@@ -16,9 +19,10 @@ describe('booking detail contract', () => {
     };
     let filterStatus: string | undefined;
     TestBed.configureTestingModule({ providers: [
-      { provide: AdminDataService, useValue: {
-        isAdmin: () => false,
-        getEvents: () => of({ dataList: [], dataCount: 0 }),
+      { provide: AuthService, useValue: { isAdmin: () => false } },
+      { provide: EventsApiService, useValue: { getEvents: () => of({ dataList: [], dataCount: 0 }) } },
+      { provide: UsersApiService, useValue: {} },
+      { provide: BookingsApiService, useValue: {
         getBookingStats: () => of({ totalBookings: 0, confirmedBookings: 0, cancelledBookings: 0, pendingBookings: 0, totalRevenue: 0 }),
         getBookings: (filter: { status?: string }) => {
           filterStatus = filter.status;

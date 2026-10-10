@@ -2,22 +2,22 @@ import { HttpErrorResponse, HttpEvent, HttpHandlerFn, HttpInterceptorFn, HttpReq
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, defer, finalize, map, Observable, shareReplay, switchMap, throwError } from 'rxjs';
-import { LoginResponse } from '../../models';
-import { AdminDataService } from './admin-data.service';
+import { LoginResponse } from './auth.models';
+import { AuthService } from './auth.service';
 
 let refreshInFlight$: Observable<string> | null = null;
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  const data = inject(AdminDataService);
+  const auth = inject(AuthService);
   const router = inject(Router);
 
   if (isPublicRequest(req)) {
     return next(req);
   }
 
-  const accessToken = data.getToken();
+  const accessToken = auth.getToken();
   if (accessToken && isTokenExpired(accessToken)) {
-    return extendSessionAndRetry(req, next, data, router);
+    return extendSessionAndRetry(req, next, auth, router);
   }
 
   const authReq = accessToken
@@ -30,7 +30,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         return throwError(() => error);
       }
 
-      return extendSessionAndRetry(req, next, data, router);
+      return extendSessionAndRetry(req, next, auth, router);
     }),
   );
 };
@@ -38,12 +38,12 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 function extendSessionAndRetry(
   req: HttpRequest<unknown>,
   next: HttpHandlerFn,
-  data: AdminDataService,
+  auth: AuthService,
   router: Router,
 ): Observable<HttpEvent<unknown>> {
-  const refreshToken = data.getRefreshToken();
+  const refreshToken = auth.getRefreshToken();
   if (!refreshToken) {
-    endSession(data, router);
+    endSession(auth, router);
     return throwError(() => authError('Session expired. Please sign in again.'));
   }
 
@@ -51,24 +51,24 @@ function extendSessionAndRetry(
     refreshInFlight$ = defer(() => {
       const allowExtend = askUserToExtendSession();
       if (!allowExtend) {
-        endSession(data, router);
+        endSession(auth, router);
         throw authError('Session ended. Please sign in again.');
       }
 
-      return data.refreshAccessToken().pipe(
+      return auth.refreshAccessToken().pipe(
         map((response: LoginResponse) => {
           const token = response.access_token?.trim();
           if (!token) {
             throw authError('Session refresh failed. Please sign in again.');
           }
 
-          data.setAuthSession(response);
+          auth.setAuthSession(response);
           return token;
         }),
       );
     }).pipe(
       catchError(() => {
-        endSession(data, router);
+        endSession(auth, router);
         return throwError(() => authError('Session refresh failed. Please sign in again.'));
       }),
       finalize(() => {
@@ -116,8 +116,8 @@ function askUserToExtendSession(): boolean {
   return window.confirm('Your session has expired. Do you want to extend the session?');
 }
 
-function endSession(data: AdminDataService, router: Router): void {
-  data.logout();
+function endSession(auth: AuthService, router: Router): void {
+  auth.logout();
   void router.navigateByUrl('/login');
 }
 

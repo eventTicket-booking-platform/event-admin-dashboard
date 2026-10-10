@@ -1,0 +1,111 @@
+<section class="page-actions">
+  <button mat-flat-button (click)="load()">Refresh</button>
+</section>
+
+<section class="stats-grid stats-grid--compact">
+  <mat-card class="stats-card"><p>Total</p><h3>{{ stats()?.totalBookings ?? '-' }}</h3></mat-card>
+  <mat-card class="stats-card"><p>Confirmed</p><h3>{{ stats()?.confirmedBookings ?? '-' }}</h3></mat-card>
+  <mat-card class="stats-card"><p>Cancelled</p><h3>{{ stats()?.cancelledBookings ?? '-' }}</h3></mat-card>
+</section>
+
+<mat-card class="panel">
+  <form [formGroup]="filters" class="filters-grid filters-grid--three">
+    <mat-form-field appearance="outline">
+      <mat-label>Status</mat-label>
+      <mat-select formControlName="status">
+        <mat-option value="">All</mat-option>
+        <mat-option value="PENDING">PENDING</mat-option>
+        <mat-option value="CONFIRMED">CONFIRMED</mat-option>
+        <mat-option value="CANCELLED">CANCELLED</mat-option>
+        <mat-option value="EXPIRED">EXPIRED</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Event</mat-label>
+      <mat-select formControlName="eventId">
+        <mat-option value="">All events</mat-option>
+        @for (event of eventOptions(); track event.eventId) {
+          <mat-option [value]="event.eventId.toString()">{{ event.title }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    @if (auth.isAdmin()) {
+    <mat-form-field appearance="outline">
+      <mat-label>User email</mat-label>
+      <mat-select formControlName="userEmail">
+        <mat-option value="">All users</mat-option>
+        @for (user of userOptions(); track user.email) {
+          <mat-option [value]="user.email">{{ user.email }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    }
+  </form>
+</mat-card>
+
+<section class="content-grid">
+  <mat-card class="panel">
+    <div class="panel__header">
+      <div>
+        <h3>Booking list</h3>
+        <p>{{ bookings().length }} records from the admin booking list endpoint.</p>
+      </div>
+    </div>
+    <div class="data-list">
+      @for (booking of bookings(); track booking.bookingId) {
+        <button class="data-row data-row--button" type="button" (click)="loadDetail(booking.bookingId)">
+          <div class="data-row__main">
+            <strong>{{ booking.bookingReference }}</strong>
+            <p>{{ booking.eventTitle }}</p>
+            <span>{{ booking.bookingDate | date: 'medium' }}</span>
+          </div>
+          <div class="data-row__side">
+            <span class="status-badge status-badge--{{ booking.status.toLowerCase() }}">{{ booking.status }}</span>
+            <strong>{{ booking.totalAmount | currency }}</strong>
+          </div>
+        </button>
+      } @empty {
+        <p class="muted-copy">No bookings found.</p>
+      }
+    </div>
+  </mat-card>
+
+  <mat-card class="panel">
+    <div class="panel__header">
+      <div>
+        <h3>Booking detail</h3>
+        <p>Loaded from the booking detail endpoint.</p>
+      </div>
+    </div>
+
+    @if (detail(); as booking) {
+      <dl class="detail-grid">
+        <dt>Reference</dt><dd>{{ booking.bookingReference }}</dd>
+        <dt>User</dt><dd>{{ resolveUserEmail(booking.userId) }}</dd>
+        <dt>Event</dt><dd>{{ booking.eventTitle }}</dd>
+        <dt>Status</dt><dd>{{ booking.status }}</dd>
+        <dt>Total</dt><dd>{{ booking.totalAmount | currency }}</dd>
+        <dt>Booked</dt><dd>{{ booking.bookingDate | date: 'medium' }}</dd>
+      </dl>
+
+      <div class="ticket-box">
+        <h3>Items</h3>
+        <div class="simple-list">
+          @for (item of booking.items; track $index) {
+            <div class="simple-list__item">
+              <div>
+                <strong>{{ item.ticketTypeName || 'Ticket' }}</strong>
+                <p>Qty {{ item.quantity }}</p>
+              </div>
+              <span>{{ item.unitPrice | currency }}</span>
+            </div>
+          } @empty {
+            <p class="muted-copy">No line items returned.</p>
+          }
+        </div>
+      </div>
+    } @else {
+      <p class="muted-copy">Select a booking to inspect details.</p>
+    }
+  </mat-card>
+</section>

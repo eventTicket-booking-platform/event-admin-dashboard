@@ -1,0 +1,127 @@
+<section class="settings-stack">
+  <mat-card class="panel profile-card">
+    <div class="section-head">
+      <h3>Profile Information</h3>
+      <p>Update your admin profile details</p>
+    </div>
+
+    <div class="section-body">
+      <div class="avatar-row">
+        <div class="avatar-box">
+          @if (profile()?.resourceUrl) {
+            <img [src]="profile()!.resourceUrl!" alt="Profile avatar" />
+          } @else {
+            {{ initials() }}
+          }
+        </div>
+        <div class="avatar-meta">
+          <button mat-stroked-button type="button" (click)="avatarInput.click()" [disabled]="avatarUploading()">Change Avatar</button>
+          <input
+            #avatarInput
+            type="file"
+            class="hidden-file-input"
+            accept="image/png,image/jpeg,image/gif"
+            (change)="onAvatarSelected($event)"
+          />
+          <small>JPG, PNG or GIF. Max 5MB.</small>
+        </div>
+      </div>
+
+      <form [formGroup]="profileForm" (ngSubmit)="saveProfile()">
+        <div class="profile-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>First Name</mat-label>
+            <input matInput formControlName="firstName" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Last Name</mat-label>
+            <input matInput formControlName="lastName" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Email Address</mat-label>
+            <input matInput formControlName="email" readonly />
+          </mat-form-field>
+        </div>
+
+        <div class="role-row">
+          <label>Admin Role</label>
+          <div class="role-value">
+            <span>{{ roleLabel() }}</span>
+            <span class="chip">Full Access</span>
+          </div>
+        </div>
+
+        <div class="section-actions">
+          <button mat-stroked-button type="button" (click)="resetProfileForm()">Cancel</button>
+          <button mat-flat-button type="submit" [disabled]="profileForm.invalid || saving()">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </mat-card>
+
+  <mat-card class="panel security-card">
+    <div class="section-head">
+      <h3><mat-icon>lock</mat-icon> Security</h3>
+      <p>Manage your password and authentication methods</p>
+    </div>
+
+    <div class="section-body">
+      <div class="security-list">
+        <div class="security-item">
+          <div class="security-item__copy">
+            <h4>Password</h4>
+            <p>Use Keycloak account console to update your password.</p>
+          </div>
+          <button mat-stroked-button type="button" (click)="togglePasswordResetForm()">
+            {{ showPasswordResetForm() ? 'Close' : 'Change Password' }}
+          </button>
+        </div>
+
+        @if (showPasswordResetForm()) {
+          <form [formGroup]="passwordResetForm" class="password-reset-box form-stack" (ngSubmit)="submitPasswordReset()">
+            <div class="password-reset-grid">
+              <mat-form-field appearance="outline">
+                <mat-label>Email</mat-label>
+                <input matInput formControlName="email" readonly />
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>OTP Code</mat-label>
+                <input matInput formControlName="code" />
+              </mat-form-field>
+
+              <div class="password-reset-actions">
+                <button
+                  mat-stroked-button
+                  type="button"
+                  (click)="sendPasswordResetCode()"
+                  [disabled]="requestingResetCode() || !passwordResetForm.get('email')?.value"
+                >
+                  Send OTP
+                </button>
+              </div>
+            </div>
+
+            <div class="password-reset-grid">
+              <mat-form-field appearance="outline">
+                <mat-label>New Password</mat-label>
+                <input matInput type="password" formControlName="password" />
+              </mat-form-field>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Confirm Password</mat-label>
+                <input matInput type="password" formControlName="confirmPassword" />
+              </mat-form-field>
+            </div>
+
+            <div class="password-reset-actions">
+              <button mat-flat-button type="submit" [disabled]="resettingPassword()">Reset Password</button>
+            </div>
+          </form>
+        }
+      </div>
+    </div>
+  </mat-card>
+</section>

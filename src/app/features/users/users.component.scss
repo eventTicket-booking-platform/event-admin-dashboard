@@ -1,0 +1,94 @@
+.users-table-wrap {
+  overflow-x: auto;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.users-table th,
+.users-table td {
+  text-align: left;
+  padding: 0.75rem 0.65rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  vertical-align: middle;
+}
+
+.users-table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #334155;
+}
+
+.users-table td {
+  color: #0f172a;
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  object-fit: cover;
+  background: rgba(148, 163, 184, 0.25);
+}
+
+.role-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.role-pill--admin {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.role-pill--host {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.pagination {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.pagination__meta {
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.pagination__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.pager-btn {
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+  background: #f8fafc !important;
+}
+
+.pager-btn:disabled {
+  color: #94a3b8 !important;
+  border-color: #cbd5e1 !important;
+  background: #f1f5f9 !important;
+}

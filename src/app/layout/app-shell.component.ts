@@ -4,7 +4,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
-import { AdminDataService } from '../core/services/admin-data.service';
+import { AuthService } from '../core/auth/auth.service';
 import { HeaderComponent } from './header.component';
 import { SidebarComponent } from './sidebar.component';
 
@@ -35,7 +35,7 @@ export class AppShellComponent {
   private readonly breakpoints = inject(BreakpointObserver);
   private readonly router = inject(Router);
 
-  readonly data = inject(AdminDataService);
+  readonly auth = inject(AuthService);
   readonly isMobile = toSignal(this.breakpoints.observe('(max-width: 900px)').pipe(map((state) => state.matches)), {
     initialValue: false,
   });
@@ -61,7 +61,7 @@ export class AppShellComponent {
   });
 
   logout(): void {
-    this.data.logout();
+    this.auth.logout();
     void this.router.navigateByUrl('/login');
   }
 }

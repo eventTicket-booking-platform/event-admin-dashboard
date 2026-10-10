@@ -12,9 +12,11 @@ import { MatNativeDateModule } from '@angular/material/core';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTimepickerModule } from '@angular/material/timepicker';
 import { forkJoin } from 'rxjs';
-import { AdminDataService } from '../../core/services/admin-data.service';
+import { EventsApiService } from './events-api.service';
+import { CategoriesApiService } from '../categories/categories-api.service';
 import { SnackbarService } from '../../core/services/snackbar.service';
-import { CategoryRecord, EventDetail, EventFormValue, EventStatus, EventSummary } from '../../models';
+import { CategoryRecord } from '../categories/categories.models';
+import { EventDetail, EventFormValue, EventStatus, EventSummary } from './events.models';
 
 @Component({
   selector: 'app-events',
@@ -31,224 +33,12 @@ import { CategoryRecord, EventDetail, EventFormValue, EventStatus, EventSummary 
     MatTimepickerModule,
     ReactiveFormsModule,
   ],
-  template: `
-    <section class="page-actions">
-      <div class="page-actions__group">
-        <!-- <button mat-stroked-button (click)="startCreate()">New event</button> -->
-        <button mat-flat-button (click)="load()">Refresh</button>
-      </div>
-    </section>
-
-    <mat-card class="panel">
-      <form [formGroup]="filters" class="filters-grid filters-grid--three">
-        <mat-form-field appearance="outline">
-          <mat-label>Search</mat-label>
-          <input matInput formControlName="search" placeholder="Title" />
-        </mat-form-field>
-        <mat-form-field appearance="outline">
-          <mat-label>Status</mat-label>
-          <mat-select formControlName="status">
-            <mat-option value="">All</mat-option>
-            <mat-option value="DRAFT">DRAFT</mat-option>
-            <mat-option value="PUBLISHED">PUBLISHED</mat-option>
-            <mat-option value="CANCELLED">CANCELLED</mat-option>
-            <mat-option value="COMPLETED">COMPLETED</mat-option>
-          </mat-select>
-        </mat-form-field>
-        <div class="inline-actions">
-          <button mat-flat-button type="button" (click)="load()">Apply</button>
-        </div>
-      </form>
-    </mat-card>
-
-    <section class="content-grid">
-      <mat-card class="panel">
-        <div class="panel__header">
-          <div>
-            <h3>Event list(cheak cicd)</h3>
-            <p>{{ events().length }} records from admin list endpoint.</p>
-          </div>
-        </div>
-
-        <div class="data-list">
-          @for (event of events(); track event.eventId) {
-            <div class="data-row">
-              <div class="data-row__main">
-                <strong>{{ event.title }}</strong>
-                <p>{{ event.categoryName }} · {{ event.city }}</p>
-                <span>{{ event.startDateTime | date: 'medium' }}</span>
-              </div>
-              <div class="data-row__side">
-                <span class="status-badge status-badge--{{ event.status.toLowerCase() }}">{{
-                  event.status
-                }}</span>
-                <div class="inline-actions">
-                  @if (event.status !== 'COMPLETED') {
-                    <button mat-button (click)="inspect(event.eventId)">Edit</button>
-                  }
-                  @if (event.status === 'DRAFT' || event.status === 'CANCELLED') {
-                  <button mat-button (click)="changeStatus(event.eventId, 'PUBLISHED')">
-                    Publish
-                  </button>
-                  }
-                  @if (event.status === 'DRAFT' || event.status === 'PUBLISHED') {
-                  <button mat-button (click)="changeStatus(event.eventId, 'CANCELLED')">
-                    Cancel
-                  </button>
-                  <button mat-button (click)="remove(event.eventId)">Delete</button>
-                  }
-                  @if (event.status === 'PUBLISHED') {
-                    <button mat-button (click)="changeStatus(event.eventId, 'COMPLETED')">Complete</button>
-                  }
-                </div>
-              </div>
-            </div>
-          } @empty {
-            <p class="muted-copy">No events found.</p>
-          }
-        </div>
-      </mat-card>
-
-      <mat-card class="panel">
-        <div class="panel__header">
-          <div>
-            <h3>{{ editingEventId() ? 'Edit event' : 'Create event' }}</h3>
-            <p>Uses multipart payload with request JSON and an optional banner image.</p>
-          </div>
-        </div>
-
-        <form [formGroup]="eventForm" class="form-stack" (ngSubmit)="save()">
-          <mat-form-field appearance="outline">
-            <mat-label>Title</mat-label>
-            <input matInput formControlName="title" />
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Description</mat-label>
-            <textarea matInput rows="4" formControlName="description"></textarea>
-          </mat-form-field>
-
-          <div class="form-grid">
-            <mat-form-field appearance="outline">
-              <mat-label>Category</mat-label>
-              <mat-select formControlName="categoryId">
-                @for (category of categories(); track category.categoryId) {
-                  <mat-option [value]="category.categoryId">{{ category.name }}</mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
-
-            @if (!editingEventId()) {
-            <mat-form-field appearance="outline">
-              <mat-label>Status</mat-label>
-              <mat-select formControlName="status">
-                <mat-option value="DRAFT">DRAFT</mat-option>
-                <mat-option value="PUBLISHED">PUBLISHED</mat-option>
-                <mat-option value="CANCELLED">CANCELLED</mat-option>
-              </mat-select>
-            </mat-form-field>
-            } @else {
-              <p>Status: {{ eventForm.controls.status.value }}. Use the event list to change status.</p>
-            }
-
-            <mat-form-field appearance="outline">
-              <mat-label>Start date</mat-label>
-              <input matInput [matDatepicker]="startDatePicker" formControlName="startDate" />
-              <mat-datepicker-toggle matSuffix [for]="startDatePicker"></mat-datepicker-toggle>
-              <mat-datepicker #startDatePicker></mat-datepicker>
-            </mat-form-field>
-
-            <mat-form-field appearance="outline">
-              <mat-label>Start time</mat-label>
-              <input matInput [matTimepicker]="startTimePicker" formControlName="startTime" />
-              <mat-timepicker-toggle matSuffix [for]="startTimePicker"></mat-timepicker-toggle>
-              <mat-timepicker #startTimePicker></mat-timepicker>
-            </mat-form-field>
-
-            <mat-form-field appearance="outline">
-              <mat-label>End date</mat-label>
-              <input matInput [matDatepicker]="endDatePicker" formControlName="endDate" />
-              <mat-datepicker-toggle matSuffix [for]="endDatePicker"></mat-datepicker-toggle>
-              <mat-datepicker #endDatePicker></mat-datepicker>
-            </mat-form-field>
-
-            <mat-form-field appearance="outline">
-              <mat-label>End time</mat-label>
-              <input matInput [matTimepicker]="endTimePicker" formControlName="endTime" />
-              <mat-timepicker-toggle matSuffix [for]="endTimePicker"></mat-timepicker-toggle>
-              <mat-timepicker #endTimePicker></mat-timepicker>
-            </mat-form-field>
-
-            <div class="file-field">
-              <label>Banner image</label>
-              <input type="file" (change)="onFileChange($event)" />
-            </div>
-          </div>
-
-          <div class="form-grid">
-            <mat-form-field appearance="outline">
-              <mat-label>Venue name</mat-label>
-              <input matInput formControlName="venueName" />
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Venue city</mat-label>
-              <input matInput formControlName="venueCity" />
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Venue address</mat-label>
-              <input matInput formControlName="venueAddress" />
-            </mat-form-field>
-          </div>
-
-          <div class="ticket-box">
-            <div class="panel__header">
-              <div>
-                <h3>Ticket types</h3>
-                <p>At least one ticket type is required by the backend.</p>
-              </div>
-              <button mat-stroked-button type="button" (click)="addTicket()">Add ticket</button>
-            </div>
-
-            <div formArrayName="ticketTypes" class="ticket-list">
-              @for (ticket of ticketTypes.controls; track $index) {
-                <div class="ticket-row" [formGroupName]="$index">
-                  <mat-form-field appearance="outline">
-                    <mat-label>Name</mat-label>
-                    <input matInput formControlName="name" />
-                  </mat-form-field>
-                  <mat-form-field appearance="outline">
-                    <mat-label>Price</mat-label>
-                    <input matInput type="number" formControlName="price" />
-                  </mat-form-field>
-                  <mat-form-field appearance="outline">
-                    <mat-label>Quantity</mat-label>
-                    <input matInput type="number" formControlName="totalQuantity" />
-                  </mat-form-field>
-                  <button
-                    mat-icon-button
-                    type="button"
-                    (click)="removeTicket($index)"
-                    [disabled]="ticketTypes.length === 1"
-                  >
-                    <mat-icon>delete</mat-icon>
-                  </button>
-                </div>
-              }
-            </div>
-          </div>
-
-          <div class="inline-actions">
-            <button mat-flat-button type="submit" [disabled]="eventForm.invalid">Save</button>
-            <button mat-stroked-button type="button" (click)="resetForm()">Clear</button>
-          </div>
-        </form>
-      </mat-card>
-    </section>
-  `,
+  templateUrl: './events.component.html',
 })
 export class EventsComponent {
   private readonly fb = inject(FormBuilder);
-  private readonly data = inject(AdminDataService);
+  private readonly eventsApi = inject(EventsApiService);
+  private readonly categoriesApi = inject(CategoriesApiService);
   private readonly snackbar = inject(SnackbarService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -287,8 +77,8 @@ export class EventsComponent {
 
   load(): void {
     forkJoin({
-      categories: this.data.getCategories(),
-      events: this.data.getEvents({
+      categories: this.categoriesApi.getCategories(),
+      events: this.eventsApi.getEvents({
         search: this.filters.getRawValue().search,
         status: this.filters.getRawValue().status,
         page: 0,
@@ -312,7 +102,7 @@ export class EventsComponent {
   // }
 
   inspect(eventId: number): void {
-    this.data
+    this.eventsApi
       .getEvent(eventId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -351,8 +141,8 @@ export class EventsComponent {
       bannerFile: form.bannerFile,
     };
     const action = this.editingEventId()
-      ? this.data.updateEvent(this.editingEventId()!, request)
-      : this.data.createEvent(request);
+      ? this.eventsApi.updateEvent(this.editingEventId()!, request)
+      : this.eventsApi.createEvent(request);
 
     action.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (response) => {
@@ -367,7 +157,7 @@ export class EventsComponent {
   }
 
   changeStatus(eventId: number, status: EventStatus): void {
-    this.data
+    this.eventsApi
       .updateEventStatus(eventId, status)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -384,7 +174,7 @@ export class EventsComponent {
   }
 
   remove(eventId: number): void {
-    this.data
+    this.eventsApi
       .deleteEvent(eventId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

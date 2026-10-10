@@ -4,93 +4,27 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { forkJoin, of } from 'rxjs';
-import { AdminDataService } from '../../core/services/admin-data.service';
+import { EventsApiService } from '../events/events-api.service';
+import { BookingsApiService } from '../bookings/bookings-api.service';
+import { NotificationsApiService } from '../notifications/notifications-api.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { SnackbarService } from '../../core/services/snackbar.service';
-import { BookingStats, EventSummary, NotificationStats } from '../../models';
+import { BookingStats } from '../bookings/bookings.models';
+import { EventSummary } from '../events/events.models';
+import { NotificationStats } from '../notifications/notifications.models';
 
 @Component({
   selector: 'app-dashboard',
   imports: [CurrencyPipe, MatButtonModule, MatCardModule],
-  template: `
-    <section class="page-actions">
-      <button mat-flat-button (click)="load()">Refresh</button>
-    </section>
-
-    @if (!data.hasToken()) {
-      <mat-card class="panel warning-panel">
-        <strong>Connection setup required</strong>
-        <p>Add a valid bearer token in Settings before using admin endpoints.</p>
-      </mat-card>
-    }
-
-    <section class="stats-grid">
-      <mat-card class="stats-card"><p>Total bookings</p><h3>{{ bookingStats()?.totalBookings ?? '-' }}</h3></mat-card>
-      <mat-card class="stats-card"><p>Revenue</p><h3>{{ bookingStats()?.totalRevenue ?? 0 | currency }}</h3></mat-card>
-      @if (data.isAdmin()) {
-        <mat-card class="stats-card"><p>Notifications sent</p><h3>{{ notificationStats()?.sentCount ?? '-' }}</h3></mat-card>
-      }
-      <mat-card class="stats-card"><p>Events loaded</p><h3>{{ recentEvents().length }}</h3></mat-card>
-    </section>
-
-    <section class="dashboard-grid">
-      <mat-card class="panel">
-        <div class="panel__header">
-          <div>
-            <h3>Recent events</h3>
-            <p>Loaded from the admin event list endpoint.</p>
-          </div>
-        </div>
-        <div class="simple-list">
-          @for (event of recentEvents(); track event.eventId) {
-            <div class="simple-list__item">
-              <div>
-                <strong>{{ event.title }}</strong>
-                <p>{{ event.categoryName }} · {{ event.city }}</p>
-              </div>
-              <span class="status-badge status-badge--{{ event.status.toLowerCase() }}">{{ event.status }}</span>
-            </div>
-          } @empty {
-            <p class="muted-copy">No events available.</p>
-          }
-        </div>
-      </mat-card>
-
-      <mat-card class="panel">
-        <div class="panel__header">
-          <div>
-            <h3>Booking health</h3>
-            <p>From admin booking stats.</p>
-          </div>
-        </div>
-        <dl class="detail-grid">
-          <dt>Confirmed</dt><dd>{{ bookingStats()?.confirmedBookings ?? '-' }}</dd>
-          <dt>Cancelled</dt><dd>{{ bookingStats()?.cancelledBookings ?? '-' }}</dd>
-          <dt>Pending</dt><dd>{{ bookingStats()?.pendingBookings ?? '-' }}</dd>
-        </dl>
-      </mat-card>
-
-      @if (data.isAdmin()) {
-      <mat-card class="panel">
-        <div class="panel__header">
-          <div>
-            <h3>Notification health</h3>
-            <p>From notification admin stats.</p>
-          </div>
-        </div>
-        <dl class="detail-grid">
-          <dt>Total</dt><dd>{{ notificationStats()?.totalNotifications ?? '-' }}</dd>
-          <dt>Failed</dt><dd>{{ notificationStats()?.failedCount ?? '-' }}</dd>
-          <dt>Unread</dt><dd>{{ notificationStats()?.unreadCount ?? '-' }}</dd>
-        </dl>
-      </mat-card>
-      }
-    </section>
-  `,
+  templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly snackbar = inject(SnackbarService);
-  readonly data = inject(AdminDataService);
+  private readonly eventsApi = inject(EventsApiService);
+  private readonly bookingsApi = inject(BookingsApiService);
+  private readonly notificationsApi = inject(NotificationsApiService);
+  readonly auth = inject(AuthService);
 
   readonly bookingStats = signal<BookingStats | null>(null);
   readonly notificationStats = signal<NotificationStats | null>(null);
@@ -102,9 +36,9 @@ export class DashboardComponent {
 
   load(): void {
     forkJoin({
-      bookingStats: this.data.getBookingStats(),
-      notificationStats: this.data.isAdmin() ? this.data.getNotificationStats() : of(null),
-      events: this.data.getEvents({ page: 0, size: 5 }),
+      bookingStats: this.bookingsApi.getBookingStats(),
+      notificationStats: this.auth.isAdmin() ? this.notificationsApi.getNotificationStats() : of(null),
+      events: this.eventsApi.getEvents({ page: 0, size: 5 }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

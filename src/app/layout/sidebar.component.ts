@@ -1,5 +1,5 @@
 import { Component, EventEmitter, Output, computed, inject } from '@angular/core';
-import { AdminDataService } from '../core/services/admin-data.service';
+import { AuthService } from '../core/auth/auth.service';
 import { MatIconModule } from '@angular/material/icon';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 
@@ -58,7 +58,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 export class SidebarComponent {
   @Output() readonly navigate = new EventEmitter<void>();
 
-  readonly data = inject(AdminDataService);
+  readonly auth = inject(AuthService);
   readonly items = computed(() => [
     { path: '/dashboard', label: 'Overview', icon: 'dashboard' },
     { path: '/events', label: 'Events', icon: 'event' },
@@ -67,5 +67,5 @@ export class SidebarComponent {
     { path: '/categories', label: 'Categories', icon: 'category', adminOnly: true },
     { path: '/notifications', label: 'Notifications', icon: 'notifications', adminOnly: true },
     { path: '/settings', label: 'Settings', icon: 'settings' },
-  ].filter((item) => !item.adminOnly || this.data.isAdmin()));
+  ].filter((item) => !item.adminOnly || this.auth.isAdmin()));
 }

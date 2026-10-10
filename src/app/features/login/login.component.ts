@@ -6,45 +6,17 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { Router } from '@angular/router';
-import { AdminDataService } from '../../core/services/admin-data.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { SnackbarService } from '../../core/services/snackbar.service';
 
 @Component({
   selector: 'app-login',
   imports: [MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, ReactiveFormsModule],
-  template: `
-    <section class="auth-page">
-      <mat-card class="auth-card">
-        <div class="auth-card__header">
-          <p class="page-head__eyebrow">Event Hub</p>
-          <h1>Admin Login</h1>
-          <p class="page-head__copy">Sign in with an admin or host account through the gateway auth endpoint.</p>
-        </div>
-
-        <form [formGroup]="loginForm" class="form-stack" (ngSubmit)="login()">
-          <mat-form-field appearance="outline">
-            <mat-label>Email</mat-label>
-            <input matInput formControlName="email" />
-          </mat-form-field>
-
-          <mat-form-field appearance="outline">
-            <mat-label>Password</mat-label>
-            <input matInput type="password" formControlName="password" />
-          </mat-form-field>
-
-          <div class="auth-actions">
-            <button mat-flat-button type="submit" [disabled]="loginForm.invalid || loading()">
-              {{ loading() ? 'Signing in...' : 'Login' }}
-            </button>
-          </div>
-        </form>
-      </mat-card>
-    </section>
-  `,
+  templateUrl: './login.component.html',
 })
 export class LoginComponent {
   private readonly fb = inject(FormBuilder);
-  private readonly data = inject(AdminDataService);
+  readonly auth = inject(AuthService);
   private readonly snackbar = inject(SnackbarService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -57,7 +29,7 @@ export class LoginComponent {
   });
 
   constructor() {
-    if (this.data.hasToken() && this.data.canManage()) {
+    if (this.auth.hasToken() && this.auth.canManage()) {
       void this.router.navigateByUrl('/');
     }
   }
@@ -69,7 +41,7 @@ export class LoginComponent {
 
     this.loading.set(true);
 
-    this.data
+    this.auth
       .login(this.loginForm.getRawValue())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -80,9 +52,9 @@ export class LoginComponent {
             return;
           }
 
-          this.data.setAuthSession(response);
-          if (!this.data.canManage()) {
-            this.data.logout();
+          this.auth.setAuthSession(response);
+          if (!this.auth.canManage()) {
+            this.auth.logout();
             this.snackbar.error('An admin or host account is required for this dashboard.');
             this.loading.set(false);
             return;

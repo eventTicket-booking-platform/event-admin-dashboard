@@ -5,72 +5,18 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { AdminDataService } from '../../core/services/admin-data.service';
+import { CategoriesApiService } from './categories-api.service';
 import { SnackbarService } from '../../core/services/snackbar.service';
-import { CategoryRecord } from '../../models';
+import { CategoryRecord } from './categories.models';
 
 @Component({
   selector: 'app-categories',
   imports: [MatButtonModule, MatCardModule, MatFormFieldModule, MatInputModule, ReactiveFormsModule],
-  template: `
-    <section class="page-actions">
-      <button mat-flat-button (click)="load()">Refresh</button>
-    </section>
-
-    <section class="content-grid">
-      <mat-card class="panel">
-        <div class="panel__header">
-          <div>
-            <h3>Available categories</h3>
-          </div>
-        </div>
-        <div class="data-list">
-          @for (category of categories(); track category.categoryId) {
-            <div class="data-row">
-              <div class="data-row__main">
-                <strong>{{ category.name }}</strong>
-                <p>{{ category.description || 'No description' }}</p>
-                <span>{{ category.active ? 'Active' : 'Inactive' }}</span>
-              </div>
-              <div class="inline-actions">
-                <button mat-button (click)="edit(category)">Edit</button>
-                <button mat-button (click)="remove(category.categoryId)">Delete</button>
-              </div>
-            </div>
-          } @empty {
-            <p class="muted-copy">No categories available.</p>
-          }
-        </div>
-      </mat-card>
-
-      <mat-card class="panel">
-        <div class="panel__header">
-          <div>
-            <h3>{{ editingCategoryId() ? 'Edit category' : 'Create category' }}</h3>
-            <p>Category create and update use the same fields.</p>
-          </div>
-        </div>
-        <form [formGroup]="categoryForm" class="form-stack" (ngSubmit)="save()">
-          <mat-form-field appearance="outline">
-            <mat-label>Name</mat-label>
-            <input matInput formControlName="name" />
-          </mat-form-field>
-          <mat-form-field appearance="outline">
-            <mat-label>Description</mat-label>
-            <textarea matInput rows="5" formControlName="description"></textarea>
-          </mat-form-field>
-          <div class="inline-actions">
-            <button mat-flat-button type="submit" [disabled]="categoryForm.invalid">Save</button>
-            <button mat-stroked-button type="button" (click)="reset()">Clear</button>
-          </div>
-        </form>
-      </mat-card>
-    </section>
-  `,
+  templateUrl: './categories.component.html',
 })
 export class CategoriesComponent {
   private readonly fb = inject(FormBuilder);
-  private readonly data = inject(AdminDataService);
+  private readonly categoriesApi = inject(CategoriesApiService);
   private readonly snackbar = inject(SnackbarService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -87,7 +33,7 @@ export class CategoriesComponent {
   }
 
   load(): void {
-    this.data
+    this.categoriesApi
       .getCategories()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -110,8 +56,8 @@ export class CategoriesComponent {
 
     const request = this.categoryForm.getRawValue();
     const action = this.editingCategoryId()
-      ? this.data.updateCategory(this.editingCategoryId()!, request)
-      : this.data.createCategory(request);
+      ? this.categoriesApi.updateCategory(this.editingCategoryId()!, request)
+      : this.categoriesApi.createCategory(request);
 
     action.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (response) => {
@@ -126,7 +72,7 @@ export class CategoriesComponent {
   }
 
   remove(categoryId: number): void {
-    this.data
+    this.categoriesApi
       .deleteCategory(categoryId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
